@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 
 	tgClient "github.com/hahaclassic/golang-telegram-bot.git/clients/telegram"
 	event_consumer "github.com/hahaclassic/golang-telegram-bot.git/consumer/event-consumer"
@@ -18,6 +19,14 @@ const (
 )
 
 func main() {
+	if _, err := os.Stat("/path/to/whatever"); os.IsNotExist(err) {
+		err := os.MkdirAll("./data/sqlite/", 0777)
+
+		if err != nil {
+			log.Fatal("can't create directory")
+		}
+	}
+
 	s, err := sqlite.New(sqliteStoragePath)
 	if err != nil {
 		log.Fatalf("can't connect to storage: %s", err)

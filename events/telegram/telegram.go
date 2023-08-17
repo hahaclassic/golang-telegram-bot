@@ -11,15 +11,23 @@ import (
 
 // Данный тип реализует сразу два интерфейса: Processor() и Fetcher()
 type Processor struct {
-	tg      *tgClient.Client
-	offset  int
-	storage storage.Storage
+	tg               *tgClient.Client
+	offset           int
+	currentOperation string
+	lastMessage      string
+	status           bool
+	storage          storage.Storage
 }
 
 type Meta struct {
 	ChatID   int
 	UserName string
 }
+
+const (
+	statusOK         = true
+	statusProcessing = false
+)
 
 var (
 	ErrUnknownEvent    = errors.New("unknown event type")
@@ -29,6 +37,7 @@ var (
 func New(client *tgClient.Client, storage storage.Storage) *Processor {
 	return &Processor{
 		tg:      client,
+		status:  statusOK,
 		storage: storage,
 	}
 }

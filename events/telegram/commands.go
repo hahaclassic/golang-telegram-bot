@@ -7,14 +7,22 @@ import (
 	"net/url"
 	"strings"
 
+	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 const (
-	RndCmd   = "/rnd"
-	HelpCmd  = "/help"
-	StartCmd = "/start"
+	RndCmd          = "/rnd"
+	HelpCmd         = "/help"
+	StartCmd        = "/start"
+	DeleteLinkCmd   = "/delete_link"   // Удаляет ссылку из нужной папки
+	ShowFolderCmd   = "/folder"        // Показывает содержимое папки
+	CreateFolderCmd = "/create"        // Создает новую папку
+	DeleteFolderCmd = "/delete_folder" // Удаляет папку
+	ChangeFolderCmd = "/change"        // Меняет местонахождение папки
+	RenameFolderCmd = "/rename"        // Изменяет название папки
+	SaveLink        = "/save"
 )
 
 func (p *Processor) doCmd(text string, chatID int, username string) error {
@@ -22,28 +30,90 @@ func (p *Processor) doCmd(text string, chatID int, username string) error {
 
 	log.Printf("got new command '%s' from '%s'", text, username)
 
-	if isAddCmd(text) {
-		return p.savePage(context.Background(), chatID, text, username)
-	}
+	if p.status {
 
-	switch text {
-	case RndCmd:
-		return p.sendRandom(context.Background(), chatID, username)
-	case HelpCmd:
-		return p.sendHelp(chatID)
-	case StartCmd:
-		return p.sendHello(chatID)
-	default:
-		return p.tg.SendMessage(chatID, msgUnknownCommand)
+		if isAddCmd(text) {
+			p.status = statusProcessing
+			p.lastMessage = text
+			p.currentOperation = SaveLink
+			return p.tg.SendMessage(chatID, msgEnterFolderName)
+		}
+
+		switch text {
+		case RndCmd:
+			return p.sendRandom(context.Background(), chatID, username)
+		case HelpCmd:
+			return p.sendHelp(chatID)
+		case StartCmd:
+			return p.sendHello(chatID)
+		case DeleteFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = DeleteFolderCmd
+			return p.tg.SendMessage(chatID, msgEnterFolderName)
+		case CreateFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = CreateFolderCmd
+			return p.tg.SendMessage(chatID, msgEnterFolderName)
+		case ShowFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = ShowFolderCmd
+			return p.tg.SendMessage(chatID, msgEnterFolderName)
+		default:
+			return p.tg.SendMessage(chatID, msgUnknownCommand)
+		}
+
+	} else {
+
+		p.status = statusOK
+		switch p.currentOperation {
+		case SaveLink:
+			return p.savePage(context.Background(), chatID, p.lastMessage, username, text) // text == folderName
+
+		// case CreateFolderCmd:
+		// 	return p.createFolder(context.Background(), chatID, username, text) // text == folderName
+		// }
+
+		case ShowFolderCmd:
+			return p.showFolder(context.Background(), chatID, username, text)
+		default:
+			return p.tg.SendMessage(chatID, msgUnknownCommand)
+		}
 	}
 }
 
-func (p *Processor) savePage(ctx context.Context, chatID int, pageURL string, username string) (err error) {
+func (p *Processor) showFolder(ctx context.Context, chatID int, username string, folder string) (err error) {
+	defer func() { err = errhandling.WrapIfErr("can't do command: show folder", err) }()
+
+	page := &storage.Page{
+		UserName: username,
+		Folder:   folder,
+	}
+
+	isExists, err := p.storage.IsFolderExist(ctx, page)
+	if err != nil {
+		return err
+	}
+	if !isExists {
+		return p.tg.SendMessage(chatID, msgFolderNotExists)
+	}
+
+	urls, err := p.storage.GetFolder(ctx, page)
+	if err != nil {
+		return err
+	}
+
+	resultMessage := "folder " + folder + ":\n" + conc.EnumeratedJoin(urls)
+
+	return p.tg.SendMessage(chatID, resultMessage)
+}
+
+func (p *Processor) savePage(ctx context.Context, chatID int, pageURL string, username string, folder string) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't do command: save page", err) }()
 
 	page := &storage.Page{
 		URL:      pageURL,
 		UserName: username,
+		Folder:   folder,
 	}
 
 	isExists, err := p.storage.IsExist(ctx, page)
