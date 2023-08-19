@@ -24,6 +24,13 @@ type Meta struct {
 	UserName string
 }
 
+type CallbackMeta struct {
+	QueryID  string
+	UserName string
+	Message  string
+	ChatID   int
+}
+
 const (
 	statusOK         = true
 	statusProcessing = false
@@ -64,12 +71,30 @@ func (p *Processor) Fetch(limit int) ([]events.Event, error) {
 }
 
 func (p *Processor) Process(event events.Event) error {
+	//log.Println(event)
 	switch event.Type {
 	case events.Message:
 		return p.processMessage(event)
+	case events.CallbackQuery:
+		return p.processCallbackQuery(event)
 	default:
 		return errhandling.Wrap("can't process the message", ErrUnknownEvent)
 	}
+}
+
+func (p *Processor) processCallbackQuery(event events.Event) (err error) {
+	defer func() { err = errhandling.WrapIfErr("can't process callback", err) }()
+
+	meta, err := callbackMeta(event)
+	if err != nil {
+		return err
+	}
+
+	if err := p.doCallbackCmd(event.Text, &meta); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Processor) processMessage(event events.Event) (err error) {
@@ -96,6 +121,15 @@ func meta(event events.Event) (Meta, error) {
 	return res, nil
 }
 
+func callbackMeta(event events.Event) (CallbackMeta, error) {
+	res, ok := event.Meta.(CallbackMeta)
+	if !ok {
+		return CallbackMeta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
+	}
+
+	return res, nil
+}
+
 func event(upd tgClient.Update) events.Event {
 	updType := fetchType(upd)
 
@@ -109,21 +143,34 @@ func event(upd tgClient.Update) events.Event {
 			ChatID:   upd.Message.Chat.ID,
 			UserName: upd.Message.From.Username,
 		}
+	} else if updType == events.CallbackQuery {
+		res.Meta = CallbackMeta{
+			QueryID:  upd.CallbackQuery.QueryID,
+			UserName: upd.CallbackQuery.From.Username,
+			Message:  upd.CallbackQuery.Message.Text,
+			ChatID:   upd.CallbackQuery.Message.Chat.ID,
+		}
 	}
 
 	return res
 }
 
 func fetchText(upd tgClient.Update) string {
-	if upd.Message == nil {
-		return ""
+	if upd.Message != nil {
+		return upd.Message.Text
+	} else if upd.CallbackQuery != nil {
+		return upd.CallbackQuery.Data
 	}
-	return upd.Message.Text
+
+	return ""
 }
 
 func fetchType(upd tgClient.Update) events.Type {
-	if upd.Message == nil {
-		return events.Unknown
+	if upd.Message != nil {
+		return events.Message
+	} else if upd.CallbackQuery != nil {
+		return events.CallbackQuery
 	}
-	return events.Message
+
+	return events.Unknown
 }
