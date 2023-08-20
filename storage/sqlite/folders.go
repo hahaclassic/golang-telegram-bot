@@ -112,5 +112,11 @@ func (s *Storage) RenameFolder(ctx context.Context, userID int, newFolder, oldFo
 		return errhandling.Wrap("can't rename folder", err)
 	}
 
+	q = `UPDATE pages SET folder = ? WHERE userID = ? AND folder = ?`
+
+	if _, err := s.db.ExecContext(ctx, q, newFolder, userID, oldFolder); err != nil {
+		return errhandling.Wrap("can't rename folder", err)
+	}
+
 	return nil
 }

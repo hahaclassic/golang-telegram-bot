@@ -76,7 +76,6 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		}
 
 	} else {
-		log.Println(p.status, " 1")
 		p.status = statusOK
 		switch p.currentOperation {
 
