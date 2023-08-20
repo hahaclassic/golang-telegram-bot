@@ -3,6 +3,7 @@ package tgClient
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -24,6 +25,8 @@ const (
 	sendMessageMethod         = "sendMessage"
 	AnswerCallbackQueryMethod = "answerCallbackQuery"
 )
+
+var NoDataErr = errors.New("no data")
 
 func New(host string, token string) *Client {
 	return &Client{
@@ -128,7 +131,13 @@ func (c *Client) SendMessage(chatID int, text string) error {
 		Text:   text,
 	}
 
-	_, err := c.doPostRequest(sendMessageMethod, &data)
+	// Get json
+	EncodedData, err := json.Marshal(data)
+	if err != nil {
+		return errhandling.Wrap("can't get json", err)
+	}
+
+	_, err = c.doPostRequest(sendMessageMethod, EncodedData)
 	if err != nil {
 		return errhandling.Wrap("can't send a message", err)
 	}
@@ -136,40 +145,46 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	return nil
 }
 
-// func (c *Client) SendCallbackMessage(chatID int, text string, list []string) error {
-// 	buttons := [][]InlineKeyboardButton{}
+func (c *Client) SendCallbackMessage(chatID int, text string, list []string) error {
+	buttons := [][]InlineKeyboardButton{}
 
-// 	if list == nil || len(list) == 0 {
-// 		return errors.New("no data")
-// 	}
+	if list == nil || len(list) == 0 {
+		return NoDataErr
+	}
 
-// 	for _, url := range list {
-// 		inline := []InlineKeyboardButton{}
-// 		inline = append(inline, InlineKeyboardButton{
-// 			Text:         url,
-// 			CallbackData: url,
-// 		})
-// 		buttons = append(buttons, inline)
-// 	}
+	for _, url := range list {
+		inline := []InlineKeyboardButton{}
+		inline = append(inline, InlineKeyboardButton{
+			Text:         url,
+			CallbackData: url,
+		})
+		buttons = append(buttons, inline)
+	}
 
-// 	replyMarkup := InlineKeyboardMarkup{
-// 		InlineKeyboard: buttons}
+	replyMarkup := InlineKeyboardMarkup{
+		InlineKeyboard: buttons}
 
-// 	log.Println(replyMarkup) // LOG
+	log.Println(replyMarkup) // LOG
 
-// 	data := ReplyMessage{
-// 		ChatID:      chatID,
-// 		Text:        text,
-// 		ReplyMarkup: replyMarkup,
-// 	}
+	data := ReplyMessage{
+		ChatID:      chatID,
+		Text:        text,
+		ReplyMarkup: replyMarkup,
+	}
 
-// 	_, err := c.doPostRequest(sendMessageMethod, &data)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't send a message", err)
-// 	}
+	// Get json
+	EncodedData, err := json.Marshal(data)
+	if err != nil {
+		return errhandling.Wrap("can't get json", err)
+	}
 
-// 	return nil
-// }
+	_, err = c.doPostRequest(sendMessageMethod, EncodedData)
+	if err != nil {
+		return errhandling.Wrap("can't send a callback message", err)
+	}
+
+	return nil
+}
 
 func (c *Client) AnswerCallbackQuery(CallbackQueryID string) error {
 	q := url.Values{}
@@ -183,11 +198,10 @@ func (c *Client) AnswerCallbackQuery(CallbackQueryID string) error {
 	return nil
 }
 
-func (c *Client) doPostRequest(method string, query *StandardMessage) (data []byte, err error) {
+// doPostRequest() sends a post request to the server. Accepts data in json format
+func (c *Client) doPostRequest(method string, jsonData []byte) (data []byte, err error) {
 
 	defer func() { err = errhandling.WrapIfErr("can't do request", err) }()
-
-	log.Println(query.ChatID, query.Text)
 
 	u := url.URL{
 		Scheme: "https",
@@ -195,13 +209,8 @@ func (c *Client) doPostRequest(method string, query *StandardMessage) (data []by
 		Path:   path.Join(c.basePath, method),
 	}
 
-	EncodedData, err := json.Marshal(query)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create new http post request
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(EncodedData))
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(jsonData))
 
 	if err != nil {
 		return nil, err
@@ -234,6 +243,7 @@ func (c *Client) doPostRequest(method string, query *StandardMessage) (data []by
 	return body, nil
 }
 
+// doPostRequest() sends a get request to the server. Accepts data in url.Values format
 func (c *Client) doGetRequest(method string, query url.Values) (data []byte, err error) {
 
 	defer func() { err = errhandling.WrapIfErr("can't do request", err) }()

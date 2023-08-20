@@ -1,36 +1,104 @@
 package telegram
 
-const msgHelp = `I can save and keep you pages. 
+import "errors"
 
-just enter the link and I'll save it.
+const msgHelp = `Hi. With this bot, you can store your important links and sort them by folders.
 
-to get a random link, enter /rnd`
+To save the link:
+1. Create a folder using /create
+2. Enter the link
+3. Select the folder where you want to save the link
+
+To view the contents of a folder:
+1. Enter the /folder command
+2. Select the desired folder
+
+To delete a folder:
+1. Enter the command /delete_folder
+2. Select a folder
+!!! BE CAREFUL !!! this command will delete the folder and all its contents without the possibility of recovery
+
+Other commands:
+/help - help about the bot
+/rus_help - help in Russian
+/rnd - output a random link from any folder
+
+All commands are available in the menu next to the input field.
+Productive work!
+
+*** 
+also under development:
+/delete - delete links
+/rename - rename folders
+***`
+
+const msgRusHelp = `Привет. С помощью данного бота ты можешь хранить свои важные ссылки и сортировать их по папкам. 
+
+Чтобы сохранить ссылку:
+1. Создайте папку с помощью /create
+2. Введите ссылку
+3. Выберите папку, в которую хотите сохранить ссылку
+
+Чтобы посмотреть содержимое папки:
+1. Введите команду /folder
+2. Выберите нужную папку
+
+Чтобы удалить папку:
+1. Введите команду /delete_folder
+2. Выберите папку
+!!! БУДЬТЕ ВНИМАТЕЛЬНЫ !!! данная команда удалит папку и все ее содержимое без возможности восстановления
+
+Прочие команды:
+/help - справка о боте
+/rus_help - Справка на русском
+/rnd - вывод случайной ссылки из любой папки
+
+Все команды доступны в меню рядом с полем ввода.
+Продуктивной работы!
+
+*** также в процессе разработки:
+delete - удаление ссылок
+rename - переименование папок
+***`
 
 const msgHello = "Hi there!\n\n" + msgHelp
 
 const (
-	msgUnknownCommand      = "Unknown command 🤔"
-	msgNoSavedPages        = "You have no saved pages 😢"
-	msgSaved               = "Saved! 👌"
-	msgAlreadyExists       = "You already have this page in your list 😌"
-	msgFolderAlreadyExists = "This folder already exists 😌"
-	msgFolderNotExists     = "This folder doesn't exist 🥺"
+	// Error
+	msgUnknownCommand  = "Unknown command 🤔"
+	msgFolderNotExists = "This folder doesn't exist 🥺"
+	msgNoSavedPages    = "You have no saved pages 😢"
+	msgNoFolders       = "No existing folders 😢"
+	msgEmptyFolder     = "This folder is still empty 😢"
 
+	// Warning
+	msgFolderAlreadyExists = "This folder already exists 😌"
+	msgAlreadyExists       = "You already have this page in your list 😌"
+
+	// OK
+	msgNewFolderCreated = "New Folder created 😇"
+	msgSaved            = "Saved! 👌"
+	msgFolderDeleted    = "Folder deleted 🫡"
+
+	// Input Suggestion
+	msgChooseFolder    = "Choose folder"
 	msgEnterFolderName = "Enter the folder name"
-	msgEnterLink       = "Enter the link"
 )
 
 const (
-	HelpCmd  = "/help"
-	StartCmd = "/start"
+	HelpCmd    = "/help"
+	RusHelpCmd = "/rus_help"
+	StartCmd   = "/start"
 
 	DeleteLinkCmd = "/delete_link" // Удаляет ссылку из нужной папки
-	SaveLink      = "/save"        // Сохраняет ссылку
+	SaveLinkCmd   = "/save"        // Сохраняет ссылку 2
 	//ChangeFolderCmd = "/change"      // Меняет местонахождение ссылки
 	RndCmd = "/rnd" // Скидывает случайную ссылку
 
-	ShowFolderCmd   = "/folder"        // Показывает содержимое папки
-	CreateFolderCmd = "/create"        // Создает новую папку
+	ShowFolderCmd   = "/folder"        // Показывает содержимое папки 3
+	CreateFolderCmd = "/create"        // Создает новую папку 1
 	DeleteFolderCmd = "/delete_folder" // Удаляет папку
 	RenameFolderCmd = "/rename"        // Изменяет название папки
 )
+
+var NoFoldersErr = errors.New("No existing folders")

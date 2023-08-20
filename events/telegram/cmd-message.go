@@ -4,45 +4,63 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/url"
 	"strings"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
-func (p *Processor) doCmd(text string, chatID int, username string) error {
+func (p *Processor) doCmd(text string, chatID int, username string) (err error) {
+
+	defer func() {
+		if err != nil {
+			p.status = statusOK
+			p.currentOperation = ""
+		}
+		if err == NoFoldersErr {
+			err = nil
+		}
+	}()
+
 	text = strings.TrimSpace(text)
 
 	log.Printf("got new command '%s' from '%s'", text, username)
 
 	if p.status {
 
-		// if isAddCmd(text) {
-		// 	p.status = statusProcessing
-		// 	p.lastMessage = text
-		// 	p.currentOperation = SaveLink
-		// 	return p.tg.SendMessage(chatID, msgEnterFolderName)
-		// }
+		if isAddCmd(text) {
+			p.status = statusProcessing
+			p.currentOperation = SaveLinkCmd
+			p.lastMessage = text
+			return p.chooseFolder(context.Background(), chatID, username)
+		}
 
 		switch text {
-		case RndCmd:
-			return p.sendRandom(context.Background(), chatID, username)
-		case HelpCmd:
-			return p.sendHelp(chatID)
 		case StartCmd:
 			return p.sendHello(chatID)
-		// case DeleteFolderCmd:
-		// 	p.status = statusProcessing
-		// 	p.currentOperation = DeleteFolderCmd
-		// 	return p.tg.SendMessage(chatID, msgEnterFolderName, nil)
-		// case CreateFolderCmd:
-		// 	p.status = statusProcessing
-		// 	p.currentOperation = CreateFolderCmd
-		// 	return p.tg.SendMessage(chatID, msgEnterFolderName, nil)
-		// case ShowFolderCmd:
-		// 	p.status = statusProcessing
-		// 	p.currentOperation = ShowFolderCmd
-		// 	return p.tg.SendMessage(chatID, msgEnterFolderName, nil, "Message")
+		case RusHelpCmd:
+			return p.sendRusHelp(chatID)
+		case HelpCmd:
+			return p.sendHelp(chatID)
+		case RndCmd:
+			return p.sendRandom(context.Background(), chatID, username)
+
+		case ShowFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = ShowFolderCmd
+			return p.chooseFolder(context.Background(), chatID, username)
+
+		case CreateFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = CreateFolderCmd
+			return p.tg.SendMessage(chatID, msgEnterFolderName)
+
+		case DeleteFolderCmd:
+			p.status = statusProcessing
+			p.currentOperation = DeleteFolderCmd
+			return p.chooseFolder(context.Background(), chatID, username)
+
 		default:
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
 		}
@@ -54,71 +72,54 @@ func (p *Processor) doCmd(text string, chatID int, username string) error {
 		// case SaveLink:
 		// 	return p.savePage(context.Background(), chatID, p.lastMessage, username, text) // text == folderName
 
-		// case CreateFolderCmd:
-		// 	return p.createFolder(context.Background(), chatID, username, text) // text == folderName
-		// }
+		case CreateFolderCmd:
+			return p.createFolder(context.Background(), chatID, username, text) // text == folderName
 
 		// case ShowFolderCmd:
 		// 	return p.showFolder(context.Background(), chatID, username, text)
 		default:
+			log.Println(p.currentOperation)
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
 		}
 	}
 }
 
-// func (p *Processor) showFolder(ctx context.Context, chatID int, username string, folder string) (err error) {
-// 	defer func() { err = errhandling.WrapIfErr("can't do command: show folder", err) }()
+func (p *Processor) createFolder(ctx context.Context, chatID int, username string, folder string) (err error) {
+	defer func() { err = errhandling.WrapIfErr("can't create folder", err) }()
 
-// 	// page := &storage.Page{
-// 	// 	UserName: username,
-// 	// 	Folder:   folder,
-// 	// }
+	ok, err := p.storage.IsFolderExist(ctx, username, folder)
+	if err != nil {
+		return err
+	}
 
-// 	isExists, err := p.storage.IsFolderExist(ctx, username, folder)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if !isExists {
-// 		return p.tg.SendMessage(chatID, msgFolderNotExists)
-// 	}
+	if ok {
+		p.tg.SendMessage(chatID, msgFolderAlreadyExists)
+	} else {
+		p.storage.NewFolder(ctx, username, folder)
+		p.tg.SendMessage(chatID, msgNewFolderCreated)
+	}
 
-// 	urls, err := p.storage.GetFolder(ctx, username, folder)
-// 	if err != nil {
-// 		return err
-// 	}
+	return nil
+}
 
-// 	resultMessage := "folder " + folder // ":\n" + conc.EnumeratedJoin(urls)
+func (p *Processor) chooseFolder(ctx context.Context, chatID int, username string) (err error) {
+	defer func() {
+		if err != NoFoldersErr {
+			err = errhandling.WrapIfErr("can't do command: choose folder", err)
+		}
+	}()
 
-// 	return nil p.tg.SendCallbackMessage(chatID, resultMessage, urls)
-// }
+	folders, err := p.storage.GetListOfFolders(ctx, username)
+	if err != nil {
+		return err
+	}
+	if len(folders) == 0 {
+		_ = p.tg.SendMessage(chatID, msgNoFolders)
+		return NoFoldersErr
+	}
 
-// func (p *Processor) savePage(ctx context.Context, chatID int, pageURL string, username string, folder string) (err error) {
-// 	defer func() { err = errhandling.WrapIfErr("can't do command: save page", err) }()
-
-// 	page := &storage.Page{
-// 		URL:      pageURL,
-// 		UserName: username,
-// 		Folder:   folder,
-// 	}
-
-// 	isExists, err := p.storage.IsExist(ctx, page)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if isExists {
-// 		return p.tg.SendMessage(chatID, msgAlreadyExists)
-// 	}
-
-// 	if err := p.storage.Save(ctx, page); err != nil {
-// 		return err
-// 	}
-
-// 	if err := p.tg.SendMessage(chatID, msgSaved); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
+	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders)
+}
 
 func (p *Processor) sendRandom(ctx context.Context, chatID int, username string) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't do command: can't send random", err) }()
@@ -142,17 +143,21 @@ func (p *Processor) sendHelp(chatID int) error {
 	return p.tg.SendMessage(chatID, msgHelp)
 }
 
+func (p *Processor) sendRusHelp(chatID int) error {
+	return p.tg.SendMessage(chatID, msgRusHelp)
+}
+
 func (p *Processor) sendHello(chatID int) error {
 	return p.tg.SendMessage(chatID, msgHello)
 }
 
-// func isAddCmd(text string) bool {
-// 	return isURL(text)
-// }
+func isAddCmd(text string) bool {
+	return isURL(text)
+}
 
-// func isURL(text string) bool {
-// 	// Необходим протокол в ссылке (https:/)
-// 	u, err := url.Parse(text)
+func isURL(text string) bool {
+	// Необходим протокол в ссылке (https:/)
+	u, err := url.Parse(text)
 
-// 	return err == nil && u.Host != ""
-// }
+	return err == nil && u.Host != ""
+}
