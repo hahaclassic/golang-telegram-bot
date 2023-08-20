@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"log"
 	"strings"
 
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
@@ -21,13 +20,6 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 	}()
 
 	text = strings.TrimSpace(text)
-
-	//err = p.tg.SendMessage(meta.ChatID, "callback epta")
-	// if err != nil {
-	// 	return err
-	// }
-
-	log.Println(text, meta.Message)
 
 	switch p.currentOperation {
 	case SaveLinkCmd:
