@@ -8,6 +8,14 @@ import (
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
+func (s *Storage) NewPage(url string, userID int, folder string) *storage.Page {
+	return &storage.Page{
+		URL:    url,
+		UserID: userID,
+		Folder: folder,
+	}
+}
+
 // Save() adds page in the storage
 func (s *Storage) Save(ctx context.Context, p *storage.Page) error {
 	q := `INSERT INTO pages (url, userID, folder) VALUES (?, ?, ?)`

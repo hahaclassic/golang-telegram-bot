@@ -6,6 +6,7 @@ import (
 )
 
 type Storage interface {
+	NewPage(url string, userID int, folder string) *Page
 	Save(ctx context.Context, p *Page) error
 	PickRandom(ctx context.Context, userID int) (*Page, error)
 	Remove(ctx context.Context, p *Page) error

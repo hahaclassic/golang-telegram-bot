@@ -7,7 +7,6 @@ import (
 
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
@@ -33,6 +32,12 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 		return p.showFolder(context.Background(), meta, text)
 	case DeleteFolderCmd:
 		return p.deleteFolder(context.Background(), meta, text)
+	case ChooseLinkForDeletionCmd:
+		p.lastMessage = text
+		p.currentOperation = DeleteLinkCmd
+		return p.chooseLinkForDeletion(context.Background(), meta, text)
+	case DeleteLinkCmd:
+		return p.deleteLink(context.Background(), meta, text)
 	}
 
 	return nil
@@ -41,11 +46,7 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 func (p *Processor) savePage(ctx context.Context, meta *CallbackMeta, folder string) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't save page", err) }()
 
-	page := &storage.Page{
-		URL:    p.lastMessage,
-		UserID: meta.UserID,
-		Folder: folder,
-	}
+	page := p.storage.NewPage(p.lastMessage, meta.UserID, folder)
 
 	isExists, err := p.storage.IsExist(ctx, page)
 	if err != nil {
@@ -73,12 +74,13 @@ func (p *Processor) showFolder(ctx context.Context, meta *CallbackMeta, folder s
 		return errhandling.Wrap("can't show folder", err)
 	}
 
-	result := conc.EnumeratedJoin(urls)
-	if result == "" {
+	if len(urls) == 0 {
 		return p.tg.SendMessage(meta.ChatID, msgEmptyFolder)
 	}
 
-	return p.tg.SendMessage(meta.ChatID, folder+":\n"+result)
+	result := folder + ":\n" + conc.EnumeratedJoin(urls)
+
+	return p.tg.SendMessage(meta.ChatID, result)
 }
 
 func (p *Processor) deleteFolder(ctx context.Context, meta *CallbackMeta, folder string) error {
@@ -89,4 +91,30 @@ func (p *Processor) deleteFolder(ctx context.Context, meta *CallbackMeta, folder
 	}
 
 	return p.tg.SendMessage(meta.ChatID, msgFolderDeleted)
+}
+
+func (p *Processor) chooseLinkForDeletion(ctx context.Context, meta *CallbackMeta, folder string) error {
+
+	urls, err := p.storage.GetFolder(ctx, meta.UserID, folder)
+	if err != nil {
+		return errhandling.Wrap("can't show folder", err)
+	}
+
+	if len(urls) == 0 {
+		return p.tg.SendMessage(meta.ChatID, msgEmptyFolder)
+	}
+
+	return p.tg.SendCallbackMessage(meta.ChatID, msgChooseLink, urls)
+}
+
+func (p *Processor) deleteLink(ctx context.Context, meta *CallbackMeta, link string) error {
+
+	page := p.storage.NewPage(link, meta.UserID, p.lastMessage)
+
+	err := p.storage.Remove(ctx, page)
+	if err != nil {
+		return err
+	}
+
+	return p.tg.SendMessage(meta.ChatID, msgPageDeleted)
 }

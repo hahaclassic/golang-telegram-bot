@@ -2,7 +2,7 @@ package telegram
 
 import "errors"
 
-const msgHelp = `With this bot, you can store your important links and sort them by folders.
+const msgHelp = `With this bot, you can store your important links and sort them by folders😊
 
 To save the link:
 1. Create a folder using /create
@@ -32,7 +32,7 @@ also under development:
 /rename - rename folders
 ***`
 
-const msgRusHelp = `С помощью данного бота ты можешь хранить свои важные ссылки и сортировать их по папкам. 
+const msgRusHelp = `С помощью данного бота ты можешь хранить свои важные ссылки и сортировать их по папкам😊
 
 Чтобы сохранить ссылку:
 1. Создайте папку с помощью /create
@@ -79,19 +79,22 @@ const (
 	msgNewFolderCreated = "New Folder created 😇"
 	msgSaved            = "Saved! 👌"
 	msgFolderDeleted    = "Folder deleted 🫡"
+	msgPageDeleted      = "Link deleted 🫡"
 
 	// Input Suggestion
 	msgChooseFolder    = "Choose folder"
+	msgChooseLink      = "Choose link for deletion"
 	msgEnterFolderName = "Enter the folder name"
 )
 
+// User commands
 const (
 	HelpCmd    = "/help"
 	RusHelpCmd = "/rus_help"
 	StartCmd   = "/start"
 
-	DeleteLinkCmd = "/delete_link" // Удаляет ссылку из нужной папки
-	SaveLinkCmd   = "/save"        // Сохраняет ссылку 2
+	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
+	SaveLinkCmd              = "/save"   // Сохраняет ссылку 2
 	//ChangeFolderCmd = "/change"      // Меняет местонахождение ссылки
 	RndCmd = "/rnd" // Скидывает случайную ссылку
 
@@ -99,6 +102,11 @@ const (
 	CreateFolderCmd = "/create"        // Создает новую папку 1
 	DeleteFolderCmd = "/delete_folder" // Удаляет папку
 	RenameFolderCmd = "/rename"        // Изменяет название папки
+)
+
+// Internal commands
+const (
+	DeleteLinkCmd = "/delete_link"
 )
 
 var NoFoldersErr = errors.New("No existing folders")

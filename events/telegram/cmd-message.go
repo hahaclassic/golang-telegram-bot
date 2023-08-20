@@ -61,6 +61,11 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			p.currentOperation = DeleteFolderCmd
 			return p.chooseFolder(context.Background(), chatID, userID)
 
+		case ChooseLinkForDeletionCmd:
+			p.status = statusProcessing
+			p.currentOperation = ChooseLinkForDeletionCmd
+			return p.chooseFolder(context.Background(), chatID, userID)
+
 		default:
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
 		}
