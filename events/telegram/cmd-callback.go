@@ -42,9 +42,9 @@ func (p *Processor) savePage(ctx context.Context, meta *CallbackMeta, folder str
 	defer func() { err = errhandling.WrapIfErr("can't save page", err) }()
 
 	page := &storage.Page{
-		URL:      p.lastMessage,
-		UserName: meta.UserName,
-		Folder:   folder,
+		URL:    p.lastMessage,
+		UserID: meta.UserID,
+		Folder: folder,
 	}
 
 	isExists, err := p.storage.IsExist(ctx, page)
@@ -68,7 +68,7 @@ func (p *Processor) savePage(ctx context.Context, meta *CallbackMeta, folder str
 
 func (p *Processor) showFolder(ctx context.Context, meta *CallbackMeta, folder string) error {
 
-	urls, err := p.storage.GetFolder(ctx, meta.UserName, folder)
+	urls, err := p.storage.GetFolder(ctx, meta.UserID, folder)
 	if err != nil {
 		return errhandling.Wrap("can't show folder", err)
 	}
@@ -83,7 +83,7 @@ func (p *Processor) showFolder(ctx context.Context, meta *CallbackMeta, folder s
 
 func (p *Processor) deleteFolder(ctx context.Context, meta *CallbackMeta, folder string) error {
 
-	err := p.storage.RemoveFolder(ctx, meta.UserName, folder)
+	err := p.storage.RemoveFolder(ctx, meta.UserID, folder)
 	if err != nil {
 		return errhandling.Wrap("can't delete folder", err)
 	}

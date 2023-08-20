@@ -30,14 +30,14 @@ func New(path string) (*Storage, error) {
 
 // Init() create tables in the database
 func (s *Storage) Init(ctx context.Context) error {
-	q := `CREATE TABLE IF NOT EXISTS pages (url TEXT, user_name TEXT, folder TEXT)`
+	q := `CREATE TABLE IF NOT EXISTS pages (url TEXT, userID INTEGER, folder TEXT)`
 
 	_, err := s.db.ExecContext(ctx, q)
 	if err != nil {
 		return errhandling.Wrap("can't create table 'pages'", err)
 	}
 
-	q = `CREATE TABLE IF NOT EXISTS folders (user_name TEXT, folder TEXT)`
+	q = `CREATE TABLE IF NOT EXISTS folders (userID INTEGER, folder TEXT)`
 	_, err = s.db.ExecContext(ctx, q)
 	if err != nil {
 		return errhandling.Wrap("can't create table 'folders", err)

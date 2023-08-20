@@ -25,7 +25,7 @@ type IncomingMessage struct {
 }
 
 type From struct {
-	Username string `json:"username"`
+	UserID int `json:"id"`
 }
 
 type Chat struct {

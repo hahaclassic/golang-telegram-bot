@@ -20,15 +20,15 @@ type Processor struct {
 }
 
 type Meta struct {
-	ChatID   int
-	UserName string
+	ChatID int
+	UserID int
 }
 
 type CallbackMeta struct {
-	QueryID  string
-	UserName string
-	Message  string
-	ChatID   int
+	QueryID string
+	UserID  int
+	Message string
+	ChatID  int
 }
 
 const (
@@ -105,7 +105,7 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 		return err
 	}
 
-	if err := p.doCmd(event.Text, meta.ChatID, meta.UserName); err != nil {
+	if err := p.doCmd(event.Text, meta.ChatID, meta.UserID); err != nil {
 		return err
 	}
 
@@ -140,15 +140,15 @@ func event(upd tgClient.Update) events.Event {
 
 	if updType == events.Message {
 		res.Meta = Meta{
-			ChatID:   upd.Message.Chat.ID,
-			UserName: upd.Message.From.Username,
+			ChatID: upd.Message.Chat.ID,
+			UserID: upd.Message.From.UserID,
 		}
 	} else if updType == events.CallbackQuery {
 		res.Meta = CallbackMeta{
-			QueryID:  upd.CallbackQuery.QueryID,
-			UserName: upd.CallbackQuery.From.Username,
-			Message:  upd.CallbackQuery.Message.Text,
-			ChatID:   upd.CallbackQuery.Message.Chat.ID,
+			QueryID: upd.CallbackQuery.QueryID,
+			UserID:  upd.CallbackQuery.From.UserID,
+			Message: upd.CallbackQuery.Message.Text,
+			ChatID:  upd.CallbackQuery.Message.Chat.ID,
 		}
 	}
 

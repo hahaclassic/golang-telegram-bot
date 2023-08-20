@@ -2,11 +2,11 @@ package telegram
 
 import "errors"
 
-const msgHelp = `Hi. With this bot, you can store your important links and sort them by folders.
+const msgHelp = `With this bot, you can store your important links and sort them by folders.
 
 To save the link:
 1. Create a folder using /create
-2. Enter the link
+2. Enter the link (https://example.com)
 3. Select the folder where you want to save the link
 
 To view the contents of a folder:
@@ -32,11 +32,11 @@ also under development:
 /rename - rename folders
 ***`
 
-const msgRusHelp = `Привет. С помощью данного бота ты можешь хранить свои важные ссылки и сортировать их по папкам. 
+const msgRusHelp = `С помощью данного бота ты можешь хранить свои важные ссылки и сортировать их по папкам. 
 
 Чтобы сохранить ссылку:
 1. Создайте папку с помощью /create
-2. Введите ссылку
+2. Введите ссылку (https://example.com)
 3. Выберите папку, в которую хотите сохранить ссылку
 
 Чтобы посмотреть содержимое папки:
@@ -57,8 +57,8 @@ const msgRusHelp = `Привет. С помощью данного бота ты
 Продуктивной работы!
 
 *** также в процессе разработки:
-delete - удаление ссылок
-rename - переименование папок
+/delete - удаление ссылок
+/rename - переименование папок
 ***`
 
 const msgHello = "Hi there!\n\n" + msgHelp

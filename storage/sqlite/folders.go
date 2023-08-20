@@ -7,11 +7,11 @@ import (
 )
 
 // NewFolder creates a new folder for user in the storage
-func (s *Storage) NewFolder(ctx context.Context, username string, folder string) error {
+func (s *Storage) NewFolder(ctx context.Context, userID int, folder string) error {
 
-	q := `INSERT INTO folders (user_name, folder) VALUES (?, ?)`
+	q := `INSERT INTO folders (userID, folder) VALUES (?, ?)`
 
-	if _, err := s.db.ExecContext(ctx, q, username, folder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, userID, folder); err != nil {
 		return errhandling.Wrap("can't save page", err)
 	}
 
@@ -19,16 +19,16 @@ func (s *Storage) NewFolder(ctx context.Context, username string, folder string)
 }
 
 // RemoveFolder() deletes the required folder
-func (s *Storage) RemoveFolder(ctx context.Context, username string, folder string) error {
-	q := `DELETE FROM pages WHERE user_name = ? AND folder = ?`
+func (s *Storage) RemoveFolder(ctx context.Context, userID int, folder string) error {
+	q := `DELETE FROM pages WHERE userID = ? AND folder = ?`
 
-	if _, err := s.db.ExecContext(ctx, q, username, folder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, userID, folder); err != nil {
 		return errhandling.Wrap("can't remove folder from table 'pages'", err)
 	}
 
-	q = `DELETE FROM folders WHERE user_name = ? AND folder = ?`
+	q = `DELETE FROM folders WHERE userID = ? AND folder = ?`
 
-	if _, err := s.db.ExecContext(ctx, q, username, folder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, userID, folder); err != nil {
 		return errhandling.Wrap("can't remove folder from table 'folders'", err)
 	}
 
@@ -36,12 +36,12 @@ func (s *Storage) RemoveFolder(ctx context.Context, username string, folder stri
 }
 
 // GetFolder() returns list of URL links in folder
-func (s *Storage) GetFolder(ctx context.Context, username string, folder string) (urls []string, err error) {
+func (s *Storage) GetFolder(ctx context.Context, userID int, folder string) (urls []string, err error) {
 	defer func() { err = errhandling.WrapIfErr("can't get folder", err) }()
 
-	q := `SELECT url FROM pages WHERE user_name = ? AND folder = ?`
+	q := `SELECT url FROM pages WHERE userID = ? AND folder = ?`
 
-	rows, err := s.db.QueryContext(ctx, q, username, folder)
+	rows, err := s.db.QueryContext(ctx, q, userID, folder)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +64,12 @@ func (s *Storage) GetFolder(ctx context.Context, username string, folder string)
 }
 
 // GetListOfFolders() get list of folders in the storage
-func (s *Storage) GetListOfFolders(ctx context.Context, username string) (names []string, err error) {
+func (s *Storage) GetListOfFolders(ctx context.Context, userID int) (names []string, err error) {
 	defer func() { err = errhandling.WrapIfErr("can't select all folders", err) }()
 
-	q := `SELECT folder FROM folders WHERE user_name = ?` // Get all folders
+	q := `SELECT folder FROM folders WHERE userID = ?` // Get all folders
 
-	rows, err := s.db.QueryContext(ctx, q, username)
+	rows, err := s.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,12 +92,12 @@ func (s *Storage) GetListOfFolders(ctx context.Context, username string) (names 
 }
 
 // IsFolderExists() checks if folder exists in the storage
-func (s *Storage) IsFolderExist(ctx context.Context, username string, folder string) (bool, error) {
-	q := `SELECT COUNT(*) FROM folders WHERE user_name = ? AND folder = ?`
+func (s *Storage) IsFolderExist(ctx context.Context, userID int, folder string) (bool, error) {
+	q := `SELECT COUNT(*) FROM folders WHERE userID = ? AND folder = ?`
 
 	var count int
 
-	if err := s.db.QueryRowContext(ctx, q, username, folder).Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, userID, folder).Scan(&count); err != nil {
 		return false, errhandling.Wrap("can't check if page exists", err)
 	}
 
@@ -105,10 +105,10 @@ func (s *Storage) IsFolderExist(ctx context.Context, username string, folder str
 }
 
 // RenameFolder() changes the folder name to a new one
-func (s *Storage) RenameFolder(ctx context.Context, username, newFolder, oldFolder string) error {
-	q := `UPDATE folders SET folder = ? WHERE user_name = ? AND folder = ?`
+func (s *Storage) RenameFolder(ctx context.Context, userID int, newFolder, oldFolder string) error {
+	q := `UPDATE folders SET folder = ? WHERE userID = ? AND folder = ?`
 
-	if _, err := s.db.ExecContext(ctx, q, newFolder, username, oldFolder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, newFolder, userID, oldFolder); err != nil {
 		return errhandling.Wrap("can't rename folder", err)
 	}
 

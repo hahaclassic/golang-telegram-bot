@@ -11,7 +11,7 @@ import (
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
-func (p *Processor) doCmd(text string, chatID int, username string) (err error) {
+func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	defer func() {
 		if err != nil {
@@ -25,7 +25,7 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 
 	text = strings.TrimSpace(text)
 
-	log.Printf("got new command '%s' from '%s'", text, username)
+	log.Printf("got new command '%s' from '%d'", text, userID)
 
 	if p.status {
 
@@ -33,7 +33,7 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 			p.status = statusProcessing
 			p.currentOperation = SaveLinkCmd
 			p.lastMessage = text
-			return p.chooseFolder(context.Background(), chatID, username)
+			return p.chooseFolder(context.Background(), chatID, userID)
 		}
 
 		switch text {
@@ -44,12 +44,12 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 		case HelpCmd:
 			return p.sendHelp(chatID)
 		case RndCmd:
-			return p.sendRandom(context.Background(), chatID, username)
+			return p.sendRandom(context.Background(), chatID, userID)
 
 		case ShowFolderCmd:
 			p.status = statusProcessing
 			p.currentOperation = ShowFolderCmd
-			return p.chooseFolder(context.Background(), chatID, username)
+			return p.chooseFolder(context.Background(), chatID, userID)
 
 		case CreateFolderCmd:
 			p.status = statusProcessing
@@ -59,7 +59,7 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 		case DeleteFolderCmd:
 			p.status = statusProcessing
 			p.currentOperation = DeleteFolderCmd
-			return p.chooseFolder(context.Background(), chatID, username)
+			return p.chooseFolder(context.Background(), chatID, userID)
 
 		default:
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
@@ -70,13 +70,13 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 		p.status = statusOK
 		switch p.currentOperation {
 		// case SaveLink:
-		// 	return p.savePage(context.Background(), chatID, p.lastMessage, username, text) // text == folderName
+		// 	return p.savePage(context.Background(), chatID, p.lastMessage, userID, text) // text == folderName
 
 		case CreateFolderCmd:
-			return p.createFolder(context.Background(), chatID, username, text) // text == folderName
+			return p.createFolder(context.Background(), chatID, userID, text) // text == folderName
 
 		// case ShowFolderCmd:
-		// 	return p.showFolder(context.Background(), chatID, username, text)
+		// 	return p.showFolder(context.Background(), chatID, userID, text)
 		default:
 			log.Println(p.currentOperation)
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
@@ -84,10 +84,10 @@ func (p *Processor) doCmd(text string, chatID int, username string) (err error) 
 	}
 }
 
-func (p *Processor) createFolder(ctx context.Context, chatID int, username string, folder string) (err error) {
+func (p *Processor) createFolder(ctx context.Context, chatID int, userID int, folder string) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't create folder", err) }()
 
-	ok, err := p.storage.IsFolderExist(ctx, username, folder)
+	ok, err := p.storage.IsFolderExist(ctx, userID, folder)
 	if err != nil {
 		return err
 	}
@@ -95,21 +95,21 @@ func (p *Processor) createFolder(ctx context.Context, chatID int, username strin
 	if ok {
 		p.tg.SendMessage(chatID, msgFolderAlreadyExists)
 	} else {
-		p.storage.NewFolder(ctx, username, folder)
+		p.storage.NewFolder(ctx, userID, folder)
 		p.tg.SendMessage(chatID, msgNewFolderCreated)
 	}
 
 	return nil
 }
 
-func (p *Processor) chooseFolder(ctx context.Context, chatID int, username string) (err error) {
+func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (err error) {
 	defer func() {
 		if err != NoFoldersErr {
 			err = errhandling.WrapIfErr("can't do command: choose folder", err)
 		}
 	}()
 
-	folders, err := p.storage.GetListOfFolders(ctx, username)
+	folders, err := p.storage.GetListOfFolders(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -121,10 +121,10 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, username strin
 	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders)
 }
 
-func (p *Processor) sendRandom(ctx context.Context, chatID int, username string) (err error) {
+func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't do command: can't send random", err) }()
 
-	page, err := p.storage.PickRandom(ctx, username)
+	page, err := p.storage.PickRandom(ctx, userID)
 	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
 		return err
 	}
