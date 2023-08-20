@@ -65,6 +65,7 @@ const (
 	msgNoSavedPages    = "You have no saved pages 😢"
 	msgNoFolders       = "No existing folders 😢"
 	msgEmptyFolder     = "This folder is still empty 😢"
+	msgCantRename      = "Cannot be renamed. A folder with this name already exists 😧"
 
 	// Warning
 	msgFolderAlreadyExists = "This folder already exists 😌"

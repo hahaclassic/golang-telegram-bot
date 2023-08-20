@@ -130,7 +130,15 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 
 func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, folder string) error {
 
-	err := p.storage.RenameFolder(ctx, userID, folder, p.lastMessage)
+	ok, err := p.storage.IsFolderExist(ctx, userID, folder)
+	if err != nil {
+		return errhandling.Wrap("can't rename folder", err)
+	}
+	if ok {
+		return p.tg.SendMessage(chatID, msgCantRename)
+	}
+
+	err = p.storage.RenameFolder(ctx, userID, folder, p.lastMessage)
 	if err != nil {
 		return errhandling.Wrap("can't rename folder", err)
 	}
