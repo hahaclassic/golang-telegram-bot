@@ -11,7 +11,11 @@ import (
 
 func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 	defer func() {
-		p.status = statusOK
+		if p.currentOperation == RenameFolderCmd {
+			p.status = statusProcessing
+		} else {
+			p.status = statusOK
+		}
 		_ = p.tg.AnswerCallbackQuery(meta.QueryID)
 		err = errhandling.WrapIfErr("can't do callback cmd", err)
 	}()
@@ -28,14 +32,23 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 	switch p.currentOperation {
 	case SaveLinkCmd:
 		return p.savePage(context.Background(), meta, text)
+
 	case ShowFolderCmd:
 		return p.showFolder(context.Background(), meta, text)
+
+	case ChooseFolderForRenaming:
+		p.lastMessage = text
+		p.currentOperation = RenameFolderCmd
+		return p.chooseFolderForRenaming(meta.ChatID)
+
 	case DeleteFolderCmd:
 		return p.deleteFolder(context.Background(), meta, text)
+
 	case ChooseLinkForDeletionCmd:
 		p.lastMessage = text
 		p.currentOperation = DeleteLinkCmd
 		return p.chooseLinkForDeletion(context.Background(), meta, text)
+
 	case DeleteLinkCmd:
 		return p.deleteLink(context.Background(), meta, text)
 	}
@@ -91,6 +104,10 @@ func (p *Processor) deleteFolder(ctx context.Context, meta *CallbackMeta, folder
 	}
 
 	return p.tg.SendMessage(meta.ChatID, msgFolderDeleted)
+}
+
+func (p *Processor) chooseFolderForRenaming(chatID int) error {
+	return p.tg.SendMessage(chatID, msgEnterNewFolderName)
 }
 
 func (p *Processor) chooseLinkForDeletion(ctx context.Context, meta *CallbackMeta, folder string) error {

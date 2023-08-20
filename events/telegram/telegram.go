@@ -39,6 +39,7 @@ const (
 var (
 	ErrUnknownEvent    = errors.New("unknown event type")
 	ErrUnknownMetaType = errors.New("unknown meta type")
+	ErrNoFolders       = errors.New("No existing folders")
 )
 
 func New(client *tgClient.Client, storage storage.Storage) *Processor {

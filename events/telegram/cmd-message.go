@@ -18,7 +18,7 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			p.status = statusOK
 			p.currentOperation = ""
 		}
-		if err == NoFoldersErr {
+		if err == ErrNoFolders {
 			err = nil
 		}
 	}()
@@ -56,6 +56,11 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			p.currentOperation = CreateFolderCmd
 			return p.tg.SendMessage(chatID, msgEnterFolderName)
 
+		case ChooseFolderForRenaming:
+			p.status = statusProcessing
+			p.currentOperation = ChooseFolderForRenaming
+			return p.chooseFolder(context.Background(), chatID, userID)
+
 		case DeleteFolderCmd:
 			p.status = statusProcessing
 			p.currentOperation = DeleteFolderCmd
@@ -71,19 +76,17 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		}
 
 	} else {
-
+		log.Println(p.status, " 1")
 		p.status = statusOK
 		switch p.currentOperation {
-		// case SaveLink:
-		// 	return p.savePage(context.Background(), chatID, p.lastMessage, userID, text) // text == folderName
 
 		case CreateFolderCmd:
 			return p.createFolder(context.Background(), chatID, userID, text) // text == folderName
 
-		// case ShowFolderCmd:
-		// 	return p.showFolder(context.Background(), chatID, userID, text)
+		case RenameFolderCmd:
+			return p.renameFolder(context.Background(), chatID, userID, text)
+
 		default:
-			log.Println(p.currentOperation)
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
 		}
 	}
@@ -109,7 +112,7 @@ func (p *Processor) createFolder(ctx context.Context, chatID int, userID int, fo
 
 func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (err error) {
 	defer func() {
-		if err != NoFoldersErr {
+		if err != ErrNoFolders {
 			err = errhandling.WrapIfErr("can't do command: choose folder", err)
 		}
 	}()
@@ -120,10 +123,20 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 	}
 	if len(folders) == 0 {
 		_ = p.tg.SendMessage(chatID, msgNoFolders)
-		return NoFoldersErr
+		return ErrNoFolders
 	}
 
 	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders)
+}
+
+func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, folder string) error {
+
+	err := p.storage.RenameFolder(ctx, userID, folder, p.lastMessage)
+	if err != nil {
+		return errhandling.Wrap("can't rename folder", err)
+	}
+
+	return p.tg.SendMessage(chatID, msgFolderRenamed)
 }
 
 func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
@@ -161,7 +174,7 @@ func isAddCmd(text string) bool {
 }
 
 func isURL(text string) bool {
-	// Необходим протокол в ссылке (https:/)
+	// Необходим протокол в ссылке (https://)
 	u, err := url.Parse(text)
 
 	return err == nil && u.Host != ""
