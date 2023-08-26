@@ -9,7 +9,7 @@ To save the link:
 (To save to an existing folder, just enter the link)
 
 To view the contents of a folder:
-1. Enter the /folder command
+1. Enter the show command
 2. Select the desired folder
 
 To delete a folder:
@@ -43,7 +43,7 @@ const msgRusHelp = `С помощью данного бота ты можешь 
 (Чтобы сохранить в уже существующую папку, просто введите ссылку)
 
 Чтобы посмотреть содержимое папки:
-1. Введите команду /folder
+1. Введите команду /show
 2. Выберите нужную папку
 
 Чтобы удалить папку:
@@ -110,7 +110,7 @@ const (
 	//ChangeFolderCmd = "/change"      // Меняет местонахождение ссылки
 	RndCmd = "/rnd" // Скидывает случайную ссылку
 
-	ShowFolderCmd           = "/folder"        // Показывает содержимое папки 3
+	ShowFolderCmd           = "/show"          // Показывает содержимое папки 3
 	CreateFolderCmd         = "/create"        // Создает новую папку 1
 	DeleteFolderCmd         = "/delete_folder" // Удаляет папку
 	ChooseFolderForRenaming = "/rename"        // Изменяет название папки
