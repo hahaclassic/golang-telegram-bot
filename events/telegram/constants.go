@@ -78,6 +78,7 @@ const (
 	msgNoFolders       = "No existing folders 😢"
 	msgEmptyFolder     = "This folder is still empty 😢"
 	msgCantRename      = "Cannot be renamed. A folder with this name already exists 😧"
+	msgLongMessage     = "The message is too long, enter something shorter 🥴"
 
 	// Warning
 	msgFolderAlreadyExists = "This folder already exists 😌"

@@ -29,6 +29,10 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	}()
 
 	text = strings.TrimSpace(text)
+	if len(text) > 60 {
+		return p.tg.SendMessage(chatID, msgLongMessage)
+	}
+
 	log.Printf("got new command '%s' from '%d'", text, userID)
 
 	if text == CancelCmd {
