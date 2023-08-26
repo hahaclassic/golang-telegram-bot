@@ -29,7 +29,6 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	}()
 
 	text = strings.TrimSpace(text)
-
 	log.Printf("got new command '%s' from '%d'", text, userID)
 
 	if text == CancelCmd {
@@ -89,7 +88,7 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			return p.renameFolder(context.Background(), chatID, userID, text)
 
 		default:
-			return p.tg.SendMessage(chatID, msgUnknownCommand)
+			return p.unknownCommandHelp(chatID, userID)
 		}
 	}
 }
@@ -97,6 +96,31 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 func (p *Processor) cancelOperation(chatID int, userID int) error {
 	p.changeSessionData(userID, Session{"", "", statusOK})
 	return p.tg.SendMessage(chatID, msgOperationCancelled)
+}
+
+func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
+
+	var message string = msgUnknownCommand + "\n\n"
+	var msgCancel string = "or enter /cancel to abort operation."
+
+	switch p.sessions[userID].currentOperation {
+	case ChooseFolderForRenaming:
+		message += "Select the folder you want to rename " + msgCancel
+	case ChooseLinkForDeletionCmd:
+		message += "Select the folder where you want to delete the link " + msgCancel
+	case DeleteLinkCmd:
+		message += "Select the link you want to delete "
+	// case CreateFolderCmd:
+	// 	message += "Enter new folder's name " + msgCancel
+	case ShowFolderCmd:
+		message += "Select the folder whose contents you want to see " + msgCancel
+	case DeleteFolderCmd:
+		message += "Select the folder you want to delete " + msgCancel
+	default:
+		message = msgUnknownCommand
+	}
+
+	return p.tg.SendMessage(chatID, message)
 }
 
 func (p *Processor) createFolder(ctx context.Context, chatID int, userID int, folder string) (err error) {

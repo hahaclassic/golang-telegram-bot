@@ -105,12 +105,13 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 		delete(p.sessions, meta.UserID)
 	}
 
-	//errChan := make(chan error, 0)
-
 	if err := p.doCallbackCmd(event.Text, &meta); err != nil {
 		return err
 	}
-	//go p.doCallbackCmd(errChan, event.Text, &meta)
+
+	if p.sessions[meta.UserID].status == statusOK {
+		delete(p.sessions, meta.UserID)
+	}
 
 	return nil
 }
