@@ -27,6 +27,7 @@ func main() {
 		}
 	}
 
+	// Create database
 	s, err := sqlite.New(sqliteStoragePath)
 	if err != nil {
 		log.Fatalf("can't connect to storage: %s", err)
@@ -37,10 +38,12 @@ func main() {
 		log.Fatalf("can't init storage: %s", err)
 	}
 
+	// Create events Processor
 	eventsProcessor := telegram.New(tgClient.New(tgBotHost, mustToken()), s)
 
 	log.Print("[START]")
 
+	// Create consumer
 	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize)
 	if err := consumer.Start(); err != nil {
 		log.Fatal("service is stopped", err)

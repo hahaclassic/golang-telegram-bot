@@ -15,11 +15,16 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	defer func() {
 		if err != nil {
-			p.status = statusOK
-			p.currentOperation = ""
+			p.changeSessionData(userID, Session{"", "", statusOK})
+			return
 		}
 		if err == ErrNoFolders {
 			err = nil
+			return
+		}
+
+		if p.sessions[userID].currentOperation == RenameFolderCmd {
+			p.changeSessionData(userID, Session{"", "", statusOK})
 		}
 	}()
 
@@ -27,12 +32,14 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	log.Printf("got new command '%s' from '%d'", text, userID)
 
-	if p.status {
+	if text == CancelCmd {
+		return p.cancelOperation(chatID, userID)
+	}
+
+	if p.sessions[userID].status {
 
 		if isAddCmd(text) {
-			p.status = statusProcessing
-			p.currentOperation = SaveLinkCmd
-			p.lastMessage = text
+			p.changeSessionData(userID, Session{text, SaveLinkCmd, statusProcessing})
 			return p.chooseFolder(context.Background(), chatID, userID)
 		}
 
@@ -47,28 +54,23 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			return p.sendRandom(context.Background(), chatID, userID)
 
 		case ShowFolderCmd:
-			p.status = statusProcessing
-			p.currentOperation = ShowFolderCmd
+			p.changeSessionData(userID, Session{"", ShowFolderCmd, statusProcessing})
 			return p.chooseFolder(context.Background(), chatID, userID)
 
 		case CreateFolderCmd:
-			p.status = statusProcessing
-			p.currentOperation = CreateFolderCmd
+			p.changeSessionData(userID, Session{"", CreateFolderCmd, statusProcessing})
 			return p.tg.SendMessage(chatID, msgEnterFolderName)
 
 		case ChooseFolderForRenaming:
-			p.status = statusProcessing
-			p.currentOperation = ChooseFolderForRenaming
+			p.changeSessionData(userID, Session{"", ChooseFolderForRenaming, statusProcessing})
 			return p.chooseFolder(context.Background(), chatID, userID)
 
 		case DeleteFolderCmd:
-			p.status = statusProcessing
-			p.currentOperation = DeleteFolderCmd
+			p.changeSessionData(userID, Session{"", DeleteFolderCmd, statusProcessing})
 			return p.chooseFolder(context.Background(), chatID, userID)
 
 		case ChooseLinkForDeletionCmd:
-			p.status = statusProcessing
-			p.currentOperation = ChooseLinkForDeletionCmd
+			p.changeSessionData(userID, Session{"", ChooseLinkForDeletionCmd, statusProcessing})
 			return p.chooseFolder(context.Background(), chatID, userID)
 
 		default:
@@ -76,10 +78,11 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		}
 
 	} else {
-		p.status = statusOK
-		switch p.currentOperation {
+
+		switch p.sessions[userID].currentOperation {
 
 		case CreateFolderCmd:
+			p.changeSessionData(userID, Session{"", "", statusOK})
 			return p.createFolder(context.Background(), chatID, userID, text) // text == folderName
 
 		case RenameFolderCmd:
@@ -89,6 +92,11 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			return p.tg.SendMessage(chatID, msgUnknownCommand)
 		}
 	}
+}
+
+func (p *Processor) cancelOperation(chatID int, userID int) error {
+	p.changeSessionData(userID, Session{"", "", statusOK})
+	return p.tg.SendMessage(chatID, msgOperationCancelled)
 }
 
 func (p *Processor) createFolder(ctx context.Context, chatID int, userID int, folder string) (err error) {
@@ -138,7 +146,7 @@ func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, fo
 		return p.tg.SendMessage(chatID, msgCantRename)
 	}
 
-	err = p.storage.RenameFolder(ctx, userID, folder, p.lastMessage)
+	err = p.storage.RenameFolder(ctx, userID, folder, p.sessions[userID].lastMessage)
 	if err != nil {
 		return errhandling.Wrap("can't rename folder", err)
 	}

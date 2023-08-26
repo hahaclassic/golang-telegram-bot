@@ -6,6 +6,7 @@ To save the link:
 1. Create a folder using /create
 2. Enter the link (https://example.com)
 3. Select the folder where you want to save the link
+(To save to an existing folder, just enter the link)
 
 To view the contents of a folder:
 1. Enter the /folder command
@@ -22,9 +23,11 @@ To delete a link:
 3. Select a link
 !!! BE CAREFUL !!! this command will delete the link without the possibility of recovery
 
+To abort the operation, type /cancel
+
 Other commands:
 /help - help about the bot
-/rus_help - help in Russian
+/help_rus - help in Russian
 /rename - rename folder
 /rnd - output a random link from any folder
 
@@ -37,6 +40,7 @@ const msgRusHelp = `С помощью данного бота ты можешь 
 1. Создайте папку с помощью /create
 2. Введите ссылку (https://example.com)
 3. Выберите папку, в которую хотите сохранить ссылку
+(Чтобы сохранить в уже существующую папку, просто введите ссылку)
 
 Чтобы посмотреть содержимое папки:
 1. Введите команду /folder
@@ -47,9 +51,17 @@ const msgRusHelp = `С помощью данного бота ты можешь 
 2. Выберите папку
 !!! БУДЬТЕ ВНИМАТЕЛЬНЫ !!! данная команда удалит папку и все ее содержимое без возможности восстановления
 
+Чтобы удалить ссылку:
+1. Введите команду /delete
+2. Выберите папку и все ее содержимое 
+3. Выберите ссылку
+!!! БУДЬТЕ ВНИМАТЕЛЬНЫ !!! данная команда удалит ссылку без возможности восстановления
+
+Чтобы прервать операцию, введите /cancel
+
 Прочие команды:
 /help - справка о боте
-/rus_help - Справка на русском
+/help_rus - Справка на русском
 /rename - переименование папки
 /rnd - вывод случайной ссылки из любой папки
 
@@ -72,11 +84,12 @@ const (
 	msgAlreadyExists       = "You already have this page in your list 😌"
 
 	// OK
-	msgNewFolderCreated = "New Folder created 😇"
-	msgSaved            = "Saved! 👌"
-	msgFolderDeleted    = "Folder deleted 🫡"
-	msgPageDeleted      = "Link deleted 🫡"
-	msgFolderRenamed    = "Folder renamed 👌"
+	msgNewFolderCreated   = "New Folder created 😇"
+	msgSaved              = "Saved! 👌"
+	msgFolderDeleted      = "Folder deleted 🫡"
+	msgPageDeleted        = "Link deleted 🫡"
+	msgFolderRenamed      = "Folder renamed 👌"
+	msgOperationCancelled = "Operation cancelled 🤓"
 
 	// Input Suggestion
 	msgChooseFolder       = "Choose folder"
@@ -88,8 +101,9 @@ const (
 // User commands
 const (
 	HelpCmd    = "/help"
-	RusHelpCmd = "/rus_help"
+	RusHelpCmd = "/help_rus"
 	StartCmd   = "/start"
+	CancelCmd  = "/cancel"
 
 	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
 	SaveLinkCmd              = "/save"   // Сохраняет ссылку 2

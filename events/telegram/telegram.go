@@ -11,12 +11,18 @@ import (
 
 // Данный тип реализует сразу два интерфейса: Processor() и Fetcher()
 type Processor struct {
-	tg               *tgClient.Client
-	offset           int
-	currentOperation string
+	tg       *tgClient.Client
+	offset   int
+	storage  storage.Storage
+	sessions map[int]Session
+}
+
+// Для асинхронной обработки будет добавлена карта с сессиями, где ключом является userID
+// При статусе ОК сессия будет удалятся из карты. (Возможно, будет удаляется через некоторое время)
+type Session struct {
 	lastMessage      string
+	currentOperation string
 	status           bool
-	storage          storage.Storage
 }
 
 type Meta struct {
@@ -40,13 +46,14 @@ var (
 	ErrUnknownEvent    = errors.New("unknown event type")
 	ErrUnknownMetaType = errors.New("unknown meta type")
 	ErrNoFolders       = errors.New("No existing folders")
+	ErrEmptyFolder     = errors.New("Empty folder")
 )
 
 func New(client *tgClient.Client, storage storage.Storage) *Processor {
 	return &Processor{
-		tg:      client,
-		status:  statusOK,
-		storage: storage,
+		tg:       client,
+		storage:  storage,
+		sessions: make(map[int]Session),
 	}
 }
 
@@ -72,7 +79,6 @@ func (p *Processor) Fetch(limit int) ([]events.Event, error) {
 }
 
 func (p *Processor) Process(event events.Event) error {
-	//log.Println(event)
 	switch event.Type {
 	case events.Message:
 		return p.processMessage(event)
@@ -91,9 +97,20 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 		return err
 	}
 
+	if _, ok := p.sessions[meta.UserID]; !ok {
+		p.sessions[meta.UserID] = Session{
+			status: statusOK,
+		}
+	} else if p.sessions[meta.UserID].status == statusOK {
+		delete(p.sessions, meta.UserID)
+	}
+
+	//errChan := make(chan error, 0)
+
 	if err := p.doCallbackCmd(event.Text, &meta); err != nil {
 		return err
 	}
+	//go p.doCallbackCmd(errChan, event.Text, &meta)
 
 	return nil
 }
@@ -106,11 +123,25 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 		return err
 	}
 
+	if _, ok := p.sessions[meta.UserID]; !ok {
+		p.sessions[meta.UserID] = Session{
+			status: statusOK,
+		}
+	}
+
 	if err := p.doCmd(event.Text, meta.ChatID, meta.UserID); err != nil {
 		return err
 	}
 
+	if p.sessions[meta.UserID].status == statusOK {
+		delete(p.sessions, meta.UserID)
+	}
+
 	return nil
+}
+
+func (p *Processor) changeSessionData(userID int, new Session) {
+	p.sessions[userID] = new
 }
 
 func meta(event events.Event) (Meta, error) {

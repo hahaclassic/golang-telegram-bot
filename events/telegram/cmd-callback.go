@@ -10,18 +10,28 @@ import (
 
 func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 	defer func() {
-		if p.currentOperation == RenameFolderCmd {
-			p.status = statusProcessing
-		} else {
-			p.status = statusOK
+		switch p.sessions[meta.UserID].currentOperation {
+		case ChooseFolderForRenaming:
+			p.changeSessionData(meta.UserID, Session{text, RenameFolderCmd, statusProcessing})
+		case ChooseLinkForDeletionCmd:
+			p.changeSessionData(meta.UserID, Session{text, DeleteLinkCmd, statusProcessing})
+		default:
+			p.changeSessionData(meta.UserID, Session{text, "", statusOK})
 		}
+
 		_ = p.tg.AnswerCallbackQuery(meta.QueryID)
+		if err != nil {
+			p.changeSessionData(meta.UserID, Session{"", "", statusOK})
+		}
+		if err == ErrEmptyFolder {
+			err = nil
+		}
 		err = errhandling.WrapIfErr("can't do callback cmd", err)
 	}()
 
 	text = strings.TrimSpace(text)
 
-	switch p.currentOperation {
+	switch p.sessions[meta.UserID].currentOperation {
 	case SaveLinkCmd:
 		return p.savePage(context.Background(), meta, text)
 
@@ -29,16 +39,12 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 		return p.showFolder(context.Background(), meta, text)
 
 	case ChooseFolderForRenaming:
-		p.lastMessage = text
-		p.currentOperation = RenameFolderCmd
 		return p.chooseFolderForRenaming(meta.ChatID)
 
 	case DeleteFolderCmd:
 		return p.deleteFolder(context.Background(), meta, text)
 
 	case ChooseLinkForDeletionCmd:
-		p.lastMessage = text
-		p.currentOperation = DeleteLinkCmd
 		return p.chooseLinkForDeletion(context.Background(), meta, text)
 
 	case DeleteLinkCmd:
@@ -51,7 +57,7 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 func (p *Processor) savePage(ctx context.Context, meta *CallbackMeta, folder string) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't save page", err) }()
 
-	page := p.storage.NewPage(p.lastMessage, meta.UserID, folder)
+	page := p.storage.NewPage(p.sessions[meta.UserID].lastMessage, meta.UserID, folder)
 
 	isExists, err := p.storage.IsExist(ctx, page)
 	if err != nil {
@@ -110,7 +116,8 @@ func (p *Processor) chooseLinkForDeletion(ctx context.Context, meta *CallbackMet
 	}
 
 	if len(urls) == 0 {
-		return p.tg.SendMessage(meta.ChatID, msgEmptyFolder)
+		p.tg.SendMessage(meta.ChatID, msgEmptyFolder)
+		return ErrEmptyFolder
 	}
 
 	return p.tg.SendCallbackMessage(meta.ChatID, msgChooseLink, urls)
@@ -118,7 +125,7 @@ func (p *Processor) chooseLinkForDeletion(ctx context.Context, meta *CallbackMet
 
 func (p *Processor) deleteLink(ctx context.Context, meta *CallbackMeta, link string) error {
 
-	page := p.storage.NewPage(link, meta.UserID, p.lastMessage)
+	page := p.storage.NewPage(link, meta.UserID, p.sessions[meta.UserID].lastMessage)
 
 	err := p.storage.Remove(ctx, page)
 	if err != nil {
