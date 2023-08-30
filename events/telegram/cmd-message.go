@@ -104,7 +104,7 @@ func (p *Processor) cancelOperation(chatID int, userID int) error {
 
 func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
 
-	var message string = msgUnknownCommand + "\n\n"
+	var message string = msgUnexpectedCommand + "\n\n"
 	var msgCancel string = "or enter /cancel to abort operation."
 
 	switch p.sessions[userID].currentOperation {
@@ -121,7 +121,7 @@ func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
 	case DeleteFolderCmd:
 		message += "Select the folder you want to delete " + msgCancel
 	default:
-		message = msgUnknownCommand
+		message = msgUnexpectedCommand
 	}
 
 	return p.tg.SendMessage(chatID, message)
