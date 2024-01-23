@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"errors"
+	"sync"
 
 	tgClient "github.com/hahaclassic/golang-telegram-bot.git/clients/telegram"
 	"github.com/hahaclassic/golang-telegram-bot.git/events"
@@ -78,14 +79,17 @@ func (p *Processor) Fetch(limit int) ([]events.Event, error) {
 	return res, nil
 }
 
-func (p *Processor) Process(event events.Event) error {
+func (p *Processor) Process(event events.Event, errors chan error, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
 	switch event.Type {
 	case events.Message:
-		return p.processMessage(event)
+		errors <- p.processMessage(event)
 	case events.CallbackQuery:
-		return p.processCallbackQuery(event)
+		errors <- p.processCallbackQuery(event)
 	default:
-		return errhandling.Wrap("can't process the message", ErrUnknownEvent)
+		errors <- errhandling.Wrap("can't process the message", ErrUnknownEvent)
 	}
 }
 
@@ -101,8 +105,6 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 		p.sessions[meta.UserID] = Session{
 			status: statusOK,
 		}
-	} else if p.sessions[meta.UserID].status == statusOK {
-		delete(p.sessions, meta.UserID)
 	}
 
 	if err := p.doCallbackCmd(event.Text, &meta); err != nil {

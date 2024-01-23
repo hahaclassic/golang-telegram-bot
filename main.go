@@ -16,6 +16,7 @@ const (
 	tgBotHost         = "api.telegram.org"
 	sqliteStoragePath = "data/sqlite/data.db"
 	batchSize         = 100
+	errChanSize       = 100
 )
 
 func main() {
@@ -44,7 +45,7 @@ func main() {
 	log.Print("[START]")
 
 	// Create consumer
-	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize)
+	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize, errChanSize)
 	if err := consumer.Start(); err != nil {
 		log.Fatal("service is stopped", err)
 	}

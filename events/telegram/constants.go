@@ -100,7 +100,6 @@ const (
 	msgEnterNewFolderName = "Enter new folder name"
 )
 
-// User commands
 const (
 	HelpCmd    = "/help"
 	RusHelpCmd = "/help_rus"

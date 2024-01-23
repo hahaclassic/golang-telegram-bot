@@ -1,11 +1,13 @@
 package events
 
+import "sync"
+
 type Fetcher interface {
 	Fetch(limit int) ([]Event, error)
 }
 
 type Processor interface {
-	Process(e Event) error
+	Process(e Event, errors chan error, wg *sync.WaitGroup)
 }
 
 type Type int
