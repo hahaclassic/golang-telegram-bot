@@ -15,16 +15,12 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	defer func() {
 		if err != nil {
-			p.changeSessionData(userID, Session{"", "", statusOK})
+			p.changeSessionData(userID, &Session{"", "", statusOK})
 			return
 		}
 		if err == ErrNoFolders {
 			err = nil
 			return
-		}
-
-		if p.sessions[userID].currentOperation == RenameFolderCmd {
-			p.changeSessionData(userID, Session{"", "", statusOK})
 		}
 	}()
 
@@ -39,66 +35,70 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		return p.cancelOperation(chatID, userID)
 	}
 
-	if p.sessions[userID].status {
-
-		if isAddCmd(text) {
-			p.changeSessionData(userID, Session{text, SaveLinkCmd, statusProcessing})
-			return p.chooseFolder(context.Background(), chatID, userID)
-		}
-
-		switch text {
-		case StartCmd:
-			return p.sendHello(chatID)
-		case RusHelpCmd:
-			return p.sendRusHelp(chatID)
-		case HelpCmd:
-			return p.sendHelp(chatID)
-		case RndCmd:
-			return p.sendRandom(context.Background(), chatID, userID)
-
-		case ShowFolderCmd:
-			p.changeSessionData(userID, Session{"", ShowFolderCmd, statusProcessing})
-			return p.chooseFolder(context.Background(), chatID, userID)
-
-		case CreateFolderCmd:
-			p.changeSessionData(userID, Session{"", CreateFolderCmd, statusProcessing})
-			return p.tg.SendMessage(chatID, msgEnterFolderName)
-
-		case ChooseFolderForRenaming:
-			p.changeSessionData(userID, Session{"", ChooseFolderForRenaming, statusProcessing})
-			return p.chooseFolder(context.Background(), chatID, userID)
-
-		case DeleteFolderCmd:
-			p.changeSessionData(userID, Session{"", DeleteFolderCmd, statusProcessing})
-			return p.chooseFolder(context.Background(), chatID, userID)
-
-		case ChooseLinkForDeletionCmd:
-			p.changeSessionData(userID, Session{"", ChooseLinkForDeletionCmd, statusProcessing})
-			return p.chooseFolder(context.Background(), chatID, userID)
-
-		default:
-			return p.tg.SendMessage(chatID, msgUnknownCommand)
-		}
-
-	} else {
-
+	// Завершение операции, если она в статусе обработки.
+	if !p.sessions[userID].status {
 		switch p.sessions[userID].currentOperation {
 
 		case CreateFolderCmd:
-			p.changeSessionData(userID, Session{"", "", statusOK})
-			return p.createFolder(context.Background(), chatID, userID, text) // text == folderName
+			err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
 
 		case RenameFolderCmd:
-			return p.renameFolder(context.Background(), chatID, userID, text)
+			err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
 
 		default:
-			return p.unknownCommandHelp(chatID, userID)
+			err = p.unknownCommandHelp(chatID, userID)
 		}
+
+		p.sessions[userID] = &Session{"", "", statusOK}
+		return err
+	}
+
+	// Добавление ссылки, если текст сообщения является ссылкой.
+	if isAddCmd(text) {
+		p.changeSessionData(userID, &Session{text, SaveLinkCmd, statusProcessing})
+		return p.chooseFolder(context.Background(), chatID, userID)
+	}
+
+	// Начало выполнения новой операции.
+	session := &Session{"", text, statusProcessing}
+
+	switch text {
+	case StartCmd:
+		return p.sendHello(chatID)
+	case RusHelpCmd:
+		return p.sendRusHelp(chatID)
+	case HelpCmd:
+		return p.sendHelp(chatID)
+	case RndCmd:
+		return p.sendRandom(context.Background(), chatID, userID)
+
+	case CreateFolderCmd:
+		p.changeSessionData(userID, session)
+		return p.tg.SendMessage(chatID, msgEnterFolderName)
+
+	case ShowFolderCmd:
+		p.changeSessionData(userID, session)
+		return p.chooseFolder(context.Background(), chatID, userID)
+
+	case ChooseFolderForRenaming:
+		p.changeSessionData(userID, session)
+		return p.chooseFolder(context.Background(), chatID, userID)
+
+	case DeleteFolderCmd:
+		p.changeSessionData(userID, session)
+		return p.chooseFolder(context.Background(), chatID, userID)
+
+	case ChooseLinkForDeletionCmd:
+		p.changeSessionData(userID, session)
+		return p.chooseFolder(context.Background(), chatID, userID)
+
+	default:
+		return p.tg.SendMessage(chatID, msgUnknownCommand)
 	}
 }
 
 func (p *Processor) cancelOperation(chatID int, userID int) error {
-	p.changeSessionData(userID, Session{"", "", statusOK})
+	p.changeSessionData(userID, &Session{"", "", statusOK})
 	return p.tg.SendMessage(chatID, msgOperationCancelled)
 }
 

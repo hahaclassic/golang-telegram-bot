@@ -15,7 +15,7 @@ type Processor struct {
 	tg       *tgClient.Client
 	offset   int
 	storage  storage.Storage
-	sessions map[int]Session
+	sessions map[int]*Session
 }
 
 // Для асинхронной обработки будет добавлена карта с сессиями, где ключом является userID
@@ -26,7 +26,7 @@ type Session struct {
 	status           bool
 }
 
-type Meta struct {
+type MessageMeta struct {
 	ChatID int
 	UserID int
 }
@@ -54,7 +54,7 @@ func New(client *tgClient.Client, storage storage.Storage) *Processor {
 	return &Processor{
 		tg:       client,
 		storage:  storage,
-		sessions: make(map[int]Session),
+		sessions: make(map[int]*Session),
 	}
 }
 
@@ -96,23 +96,25 @@ func (p *Processor) Process(event events.Event, errors chan error, wg *sync.Wait
 func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't process callback", err) }()
 
-	meta, err := callbackMeta(event)
+	meta, err := getCallbackMeta(event)
 	if err != nil {
 		return err
 	}
 
+	defer func() {
+		if err != nil || p.sessions[meta.UserID].status == statusOK {
+			delete(p.sessions, meta.UserID)
+		}
+	}()
+
 	if _, ok := p.sessions[meta.UserID]; !ok {
-		p.sessions[meta.UserID] = Session{
+		p.sessions[meta.UserID] = &Session{
 			status: statusOK,
 		}
 	}
 
-	if err := p.doCallbackCmd(event.Text, &meta); err != nil {
+	if err = p.doCallbackCmd(event.Text, &meta); err != nil {
 		return err
-	}
-
-	if p.sessions[meta.UserID].status == statusOK {
-		delete(p.sessions, meta.UserID)
 	}
 
 	return nil
@@ -121,13 +123,19 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 func (p *Processor) processMessage(event events.Event) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't process message", err) }()
 
-	meta, err := meta(event)
+	meta, err := getMessageMeta(event)
 	if err != nil {
 		return err
 	}
 
+	defer func() {
+		if err != nil || p.sessions[meta.UserID].status == statusOK {
+			delete(p.sessions, meta.UserID)
+		}
+	}()
+
 	if _, ok := p.sessions[meta.UserID]; !ok {
-		p.sessions[meta.UserID] = Session{
+		p.sessions[meta.UserID] = &Session{
 			status: statusOK,
 		}
 	}
@@ -136,27 +144,23 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 		return err
 	}
 
-	if p.sessions[meta.UserID].status == statusOK {
-		delete(p.sessions, meta.UserID)
-	}
-
 	return nil
 }
 
-func (p *Processor) changeSessionData(userID int, new Session) {
+func (p *Processor) changeSessionData(userID int, new *Session) {
 	p.sessions[userID] = new
 }
 
-func meta(event events.Event) (Meta, error) {
-	res, ok := event.Meta.(Meta)
+func getMessageMeta(event events.Event) (MessageMeta, error) {
+	res, ok := event.Meta.(MessageMeta)
 	if !ok {
-		return Meta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
+		return MessageMeta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
 	}
 
 	return res, nil
 }
 
-func callbackMeta(event events.Event) (CallbackMeta, error) {
+func getCallbackMeta(event events.Event) (CallbackMeta, error) {
 	res, ok := event.Meta.(CallbackMeta)
 	if !ok {
 		return CallbackMeta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
@@ -174,7 +178,7 @@ func event(upd tgClient.Update) events.Event {
 	}
 
 	if updType == events.Message {
-		res.Meta = Meta{
+		res.Meta = MessageMeta{
 			ChatID: upd.Message.Chat.ID,
 			UserID: upd.Message.From.UserID,
 		}

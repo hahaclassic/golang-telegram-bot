@@ -12,17 +12,14 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 	defer func() {
 		switch p.sessions[meta.UserID].currentOperation {
 		case ChooseFolderForRenaming:
-			p.changeSessionData(meta.UserID, Session{text, RenameFolderCmd, statusProcessing})
+			p.changeSessionData(meta.UserID, &Session{text, RenameFolderCmd, statusProcessing})
 		case ChooseLinkForDeletionCmd:
-			p.changeSessionData(meta.UserID, Session{text, DeleteLinkCmd, statusProcessing})
+			p.changeSessionData(meta.UserID, &Session{text, DeleteLinkCmd, statusProcessing})
 		default:
-			p.changeSessionData(meta.UserID, Session{text, "", statusOK})
+			p.changeSessionData(meta.UserID, &Session{text, "", statusOK})
 		}
 
 		_ = p.tg.AnswerCallbackQuery(meta.QueryID)
-		if err != nil {
-			p.changeSessionData(meta.UserID, Session{"", "", statusOK})
-		}
 		if err == ErrEmptyFolder {
 			err = nil
 		}
