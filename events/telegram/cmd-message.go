@@ -14,10 +14,12 @@ import (
 func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	defer func() {
+		// В случае ошибки мы прерываем выполнение операции
 		if err != nil {
-			p.changeSessionData(userID, &Session{"", "", statusOK})
+			p.changeSessionData(userID, &Session{status: statusOK})
 			return
 		}
+		// Отсутствие папок не является ошибкой, которую необходимо логировать.
 		if err == ErrNoFolders {
 			err = nil
 			return
@@ -25,43 +27,47 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	}()
 
 	text = strings.TrimSpace(text)
-	if len(text) > 60 {
+	if p.sessions[userID].currentOperation == GetNameCmd && len(text) > 60 {
 		return p.tg.SendMessage(chatID, msgLongMessage)
 	}
-
 	log.Printf("got new command '%s' from '%d'", text, userID)
 
 	if text == CancelCmd {
 		return p.cancelOperation(chatID, userID)
 	}
 
-	// Завершение операции, если она в статусе обработки.
+	// Завершение/продолжение операции, если она в статусе обработки.
 	if !p.sessions[userID].status {
+		if p.sessions[userID].currentOperation != GetNameCmd {
+			p.changeSessionStatus(userID, statusOK)
+		}
 		switch p.sessions[userID].currentOperation {
-
 		case CreateFolderCmd:
 			err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
-
 		case RenameFolderCmd:
 			err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
-
+		case GetNameCmd:
+			p.changeSessionName(userID, text)
+			p.changeSessionOperation(userID, SaveLinkCmd)
+			err = p.chooseFolder(context.Background(), chatID, userID)
 		default:
 			err = p.unknownCommandHelp(chatID, userID)
 		}
-
-		p.sessions[userID] = &Session{"", "", statusOK}
 		return err
 	}
 
 	// Добавление ссылки, если текст сообщения является ссылкой.
 	if isAddCmd(text) {
-		p.changeSessionData(userID, &Session{text, SaveLinkCmd, statusProcessing})
-		return p.chooseFolder(context.Background(), chatID, userID)
+		p.changeSessionData(userID, &Session{
+			url:              text,
+			currentOperation: GetNameCmd,
+			status:           statusProcessing,
+		})
+		return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"})
 	}
 
 	// Начало выполнения новой операции.
-	session := &Session{"", text, statusProcessing}
-
+	// Обработка однотактовых операций.
 	switch text {
 	case StartCmd:
 		return p.sendHello(chatID)
@@ -71,34 +77,28 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		return p.sendHelp(chatID)
 	case RndCmd:
 		return p.sendRandom(context.Background(), chatID, userID)
+	}
 
+	// Обработка сложных операций
+	p.changeSessionData(userID, &Session{status: statusProcessing, currentOperation: text})
+	switch text {
 	case CreateFolderCmd:
-		p.changeSessionData(userID, session)
 		return p.tg.SendMessage(chatID, msgEnterFolderName)
-
 	case ShowFolderCmd:
-		p.changeSessionData(userID, session)
 		return p.chooseFolder(context.Background(), chatID, userID)
-
-	case ChooseFolderForRenaming:
-		p.changeSessionData(userID, session)
+	case ChooseFolderForRenamingCmd:
 		return p.chooseFolder(context.Background(), chatID, userID)
-
 	case DeleteFolderCmd:
-		p.changeSessionData(userID, session)
 		return p.chooseFolder(context.Background(), chatID, userID)
-
 	case ChooseLinkForDeletionCmd:
-		p.changeSessionData(userID, session)
 		return p.chooseFolder(context.Background(), chatID, userID)
-
 	default:
 		return p.tg.SendMessage(chatID, msgUnknownCommand)
 	}
 }
 
 func (p *Processor) cancelOperation(chatID int, userID int) error {
-	p.changeSessionData(userID, &Session{"", "", statusOK})
+	p.changeSessionData(userID, &Session{status: statusOK})
 	return p.tg.SendMessage(chatID, msgOperationCancelled)
 }
 
@@ -108,7 +108,7 @@ func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
 	var msgCancel string = "or enter /cancel to abort operation."
 
 	switch p.sessions[userID].currentOperation {
-	case ChooseFolderForRenaming:
+	case ChooseFolderForRenamingCmd:
 		message += "Select the folder you want to rename " + msgCancel
 	case ChooseLinkForDeletionCmd:
 		message += "Select the folder where you want to delete the link " + msgCancel
@@ -164,9 +164,9 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders)
 }
 
-func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, folder string) error {
+func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, newFolder string) error {
 
-	ok, err := p.storage.IsFolderExist(ctx, userID, folder)
+	ok, err := p.storage.IsFolderExist(ctx, userID, newFolder)
 	if err != nil {
 		return errhandling.Wrap("can't rename folder", err)
 	}
@@ -174,7 +174,7 @@ func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, fo
 		return p.tg.SendMessage(chatID, msgCantRename)
 	}
 
-	err = p.storage.RenameFolder(ctx, userID, folder, p.sessions[userID].lastMessage)
+	err = p.storage.RenameFolder(ctx, userID, newFolder, p.sessions[userID].folder)
 	if err != nil {
 		return errhandling.Wrap("can't rename folder", err)
 	}

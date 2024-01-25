@@ -35,8 +35,8 @@ func (s *Storage) RemoveFolder(ctx context.Context, userID int, folder string) e
 	return nil
 }
 
-// GetFolder() returns list of URL links in folder
-func (s *Storage) GetFolder(ctx context.Context, userID int, folder string) (urls []string, err error) {
+// GetLinks() returns list of URL links in folder
+func (s *Storage) GetLinks(ctx context.Context, userID int, folder string) (urls []string, err error) {
 	defer func() { err = errhandling.WrapIfErr("can't get folder", err) }()
 
 	q := `SELECT url FROM pages WHERE userID = ? AND folder = ?`
@@ -63,13 +63,13 @@ func (s *Storage) GetFolder(ctx context.Context, userID int, folder string) (url
 	return urls, nil
 }
 
-// GetListOfFolders() get list of folders in the storage
-func (s *Storage) GetListOfFolders(ctx context.Context, userID int) (names []string, err error) {
-	defer func() { err = errhandling.WrapIfErr("can't select all folders", err) }()
+// GetLinks() returns list of URL names (tags) in folder
+func (s *Storage) GetNames(ctx context.Context, userID int, folder string) (names []string, err error) {
+	defer func() { err = errhandling.WrapIfErr("can't get folder", err) }()
 
-	q := `SELECT folder FROM folders WHERE userID = ?` // Get all folders
+	q := `SELECT name FROM pages WHERE userID = ? AND folder = ?`
 
-	rows, err := s.db.QueryContext(ctx, q, userID)
+	rows, err := s.db.QueryContext(ctx, q, userID, folder)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,34 @@ func (s *Storage) GetListOfFolders(ctx context.Context, userID int) (names []str
 	}
 
 	return names, nil
+}
+
+// GetListOfFolders() get list of folders in the storage
+func (s *Storage) GetListOfFolders(ctx context.Context, userID int) (folders []string, err error) {
+	defer func() { err = errhandling.WrapIfErr("can't select all folders", err) }()
+
+	q := `SELECT folder FROM folders WHERE userID = ?` // Get all folders
+
+	rows, err := s.db.QueryContext(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var temp string
+
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&temp); err != nil {
+			return nil, err
+		}
+		folders = append(folders, temp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return folders, nil
 }
 
 // IsFolderExists() checks if folder exists in the storage

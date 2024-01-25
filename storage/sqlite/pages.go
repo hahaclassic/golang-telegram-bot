@@ -8,9 +8,10 @@ import (
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
-func (s *Storage) NewPage(url string, userID int, folder string) *storage.Page {
+func (s *Storage) NewPage(url string, name string, userID int, folder string) *storage.Page {
 	return &storage.Page{
 		URL:    url,
+		Name:   name,
 		UserID: userID,
 		Folder: folder,
 	}
@@ -18,9 +19,9 @@ func (s *Storage) NewPage(url string, userID int, folder string) *storage.Page {
 
 // Save() adds page in the storage
 func (s *Storage) Save(ctx context.Context, p *storage.Page) error {
-	q := `INSERT INTO pages (url, userID, folder) VALUES (?, ?, ?)`
+	q := `INSERT INTO pages (url, name, userID, folder) VALUES (?, ?, ?, ?)`
 
-	if _, err := s.db.ExecContext(ctx, q, p.URL, p.UserID, p.Folder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, p.URL, p.Name, p.UserID, p.Folder); err != nil {
 		return errhandling.Wrap("can't save page", err)
 	}
 
@@ -50,9 +51,9 @@ func (s *Storage) PickRandom(ctx context.Context, userID int) (*storage.Page, er
 
 // Remove() deletes the required page
 func (s *Storage) Remove(ctx context.Context, page *storage.Page) error {
-	q := `DELETE FROM pages WHERE url = ? AND userID = ? AND folder = ?`
+	q := `DELETE FROM pages WHERE name = ? AND userID = ? AND folder = ?`
 
-	if _, err := s.db.ExecContext(ctx, q, page.URL, page.UserID, page.Folder); err != nil {
+	if _, err := s.db.ExecContext(ctx, q, page.Name, page.UserID, page.Folder); err != nil {
 		return errhandling.Wrap("can't remove page", err)
 	}
 
@@ -61,11 +62,11 @@ func (s *Storage) Remove(ctx context.Context, page *storage.Page) error {
 
 // IsExists() checks if pages exists in storage
 func (s *Storage) IsExist(ctx context.Context, page *storage.Page) (bool, error) {
-	q := `SELECT COUNT(*) FROM pages WHERE url = ? AND userID = ? AND folder = ?`
+	q := `SELECT COUNT(*) FROM pages WHERE (url = ? OR name = ?) AND userID = ? AND folder = ?`
 
 	var count int
 
-	if err := s.db.QueryRowContext(ctx, q, page.URL, page.UserID, page.Folder).Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, page.URL, page.Name, page.UserID, page.Folder).Scan(&count); err != nil {
 		return false, errhandling.Wrap("can't check if page exists", err)
 	}
 

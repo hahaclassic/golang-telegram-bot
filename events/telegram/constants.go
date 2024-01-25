@@ -1,5 +1,7 @@
 package telegram
 
+const maxCallbackMsgLen = 60
+
 const msgHelp = `With this bot, you can store your important links and sort them by folders😊
 
 To save the link:
@@ -98,6 +100,7 @@ const (
 	msgChooseLink         = "Choose link for deletion"
 	msgEnterFolderName    = "Enter the folder name"
 	msgEnterNewFolderName = "Enter new folder name"
+	msgEnterUrlName       = "Enter short name (tag) for link"
 )
 
 const (
@@ -107,18 +110,20 @@ const (
 	CancelCmd  = "/cancel"
 
 	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
-	SaveLinkCmd              = "/save"   // Сохраняет ссылку 2
-	//ChangeFolderCmd = "/change"      // Меняет местонахождение ссылки
+	//ChangeFolderCmd = "/move"      // Меняет местонахождение ссылки
 	RndCmd = "/rnd" // Скидывает случайную ссылку
+	// RenameLink = "/rename"
 
-	ShowFolderCmd           = "/show"          // Показывает содержимое папки 3
-	CreateFolderCmd         = "/create"        // Создает новую папку 1
-	DeleteFolderCmd         = "/delete_folder" // Удаляет папку
-	ChooseFolderForRenaming = "/rename"        // Изменяет название папки
+	ShowFolderCmd              = "/show"          // Показывает содержимое папки
+	CreateFolderCmd            = "/create"        // Создает новую папку
+	DeleteFolderCmd            = "/delete_folder" // Удаляет папку
+	ChooseFolderForRenamingCmd = "/rename"        // Изменяет название папки
 )
 
 // Internal commands
 const (
+	SaveLinkCmd     = "/save"
 	DeleteLinkCmd   = "/delete_link"
 	RenameFolderCmd = "/rename_folder"
+	GetNameCmd      = "/get_name"
 )

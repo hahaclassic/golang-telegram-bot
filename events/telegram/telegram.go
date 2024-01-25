@@ -18,14 +18,6 @@ type Processor struct {
 	sessions map[int]*Session
 }
 
-// Для асинхронной обработки будет добавлена карта с сессиями, где ключом является userID
-// При статусе ОК сессия будет удалятся из карты. (Возможно, будет удаляется через некоторое время)
-type Session struct {
-	lastMessage      string
-	currentOperation string
-	status           bool
-}
-
 type MessageMeta struct {
 	ChatID int
 	UserID int
@@ -145,10 +137,6 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 	}
 
 	return nil
-}
-
-func (p *Processor) changeSessionData(userID int, new *Session) {
-	p.sessions[userID] = new
 }
 
 func getMessageMeta(event events.Event) (MessageMeta, error) {
