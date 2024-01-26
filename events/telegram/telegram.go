@@ -18,6 +18,15 @@ type Processor struct {
 	sessions map[int]*Session
 }
 
+// При статусе ОК сессия будет удалятся из карты. (Возможно, будет удаляется через некоторое время)
+type Session struct {
+	currentOperation string
+	url              string
+	name             string
+	folder           string
+	status           bool
+}
+
 type MessageMeta struct {
 	ChatID int
 	UserID int

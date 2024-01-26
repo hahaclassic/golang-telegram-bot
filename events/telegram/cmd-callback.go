@@ -2,14 +2,12 @@ package telegram
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
 )
 
 func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
-	fmt.Println(meta.Message, text)
 	defer func() {
 		_ = p.tg.AnswerCallbackQuery(meta.QueryID)
 		if err == ErrEmptyFolder {
@@ -20,40 +18,40 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 
 	text = strings.TrimSpace(text)
 	if p.sessions[meta.UserID].currentOperation == DeleteLinkCmd {
-		p.changeSessionName(meta.UserID, text)
+		p.sessions[meta.UserID].name = text
 	} else {
-		p.changeSessionFolder(meta.UserID, text)
+		p.sessions[meta.UserID].folder = text
 	}
 
 	switch p.sessions[meta.UserID].currentOperation {
 
 	case ChooseFolderForRenamingCmd:
-		p.changeSessionOperation(meta.UserID, RenameFolderCmd)
+		p.sessions[meta.UserID].currentOperation = RenameFolderCmd
 		return p.chooseFolderForRenaming(meta.ChatID)
 
 	case ChooseLinkForDeletionCmd:
-		p.changeSessionOperation(meta.UserID, DeleteLinkCmd)
+		p.sessions[meta.UserID].currentOperation = DeleteLinkCmd
 		return p.chooseLinkForDeletion(context.Background(), meta)
 
 	case GetNameCmd:
-		p.changeSessionName(meta.UserID, trimLink(p.sessions[meta.UserID].url))
-		p.changeSessionOperation(meta.UserID, SaveLinkCmd)
+		p.sessions[meta.UserID].currentOperation = RenameFolderCmd
+		p.sessions[meta.UserID].name = trimLink(p.sessions[meta.UserID].url)
 		err = p.chooseFolder(context.Background(), meta.ChatID, meta.UserID)
 
 	case SaveLinkCmd:
-		p.changeSessionStatus(meta.UserID, statusOK)
+		p.sessions[meta.UserID].status = statusOK
 		return p.savePage(context.Background(), meta)
 
 	case ShowFolderCmd:
-		p.changeSessionStatus(meta.UserID, statusOK)
+		p.sessions[meta.UserID].status = statusOK
 		return p.showFolder(context.Background(), meta)
 
 	case DeleteFolderCmd:
-		p.changeSessionStatus(meta.UserID, statusOK)
+		p.sessions[meta.UserID].status = statusOK
 		return p.deleteFolder(context.Background(), meta)
 
 	case DeleteLinkCmd:
-		p.changeSessionStatus(meta.UserID, statusOK)
+		p.sessions[meta.UserID].status = statusOK
 		return p.deleteLink(context.Background(), meta)
 	}
 

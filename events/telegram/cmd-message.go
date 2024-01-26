@@ -16,13 +16,11 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	defer func() {
 		// В случае ошибки мы прерываем выполнение операции
 		if err != nil {
-			p.changeSessionData(userID, &Session{status: statusOK})
-			return
+			p.sessions[userID].status = statusOK
 		}
 		// Отсутствие папок не является ошибкой, которую необходимо логировать.
 		if err == ErrNoFolders {
 			err = nil
-			return
 		}
 	}()
 
@@ -36,7 +34,7 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	// Завершение/продолжение операции, если она в статусе обработки.
 	if !p.sessions[userID].status {
 		if p.sessions[userID].currentOperation != GetNameCmd {
-			p.changeSessionStatus(userID, statusOK)
+			p.sessions[userID].status = statusOK
 		}
 		switch p.sessions[userID].currentOperation {
 		case CreateFolderCmd:
@@ -47,8 +45,8 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 			if len(text) > maxCallbackMsgLen {
 				return p.tg.SendMessage(chatID, msgLongMessage)
 			}
-			p.changeSessionName(userID, text)
-			p.changeSessionOperation(userID, SaveLinkCmd)
+			p.sessions[userID].name = text
+			p.sessions[userID].currentOperation = SaveLinkCmd
 			err = p.chooseFolder(context.Background(), chatID, userID)
 		default:
 			err = p.unknownCommandHelp(chatID, userID)
@@ -58,11 +56,9 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
 	// Добавление ссылки, если текст сообщения является ссылкой.
 	if isAddCmd(text) {
-		p.changeSessionData(userID, &Session{
-			url:              text,
-			currentOperation: GetNameCmd,
-			status:           statusProcessing,
-		})
+		p.sessions[userID].url = text
+		p.sessions[userID].currentOperation = GetNameCmd
+		p.sessions[userID].status = statusProcessing
 		return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"})
 	}
 
@@ -80,7 +76,8 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	}
 
 	// Обработка сложных операций
-	p.changeSessionData(userID, &Session{status: statusProcessing, currentOperation: text})
+	p.sessions[userID].currentOperation = text
+	p.sessions[userID].status = statusProcessing
 	switch text {
 	case CreateFolderCmd:
 		return p.tg.SendMessage(chatID, msgEnterFolderName)
@@ -98,7 +95,7 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 }
 
 func (p *Processor) cancelOperation(chatID int, userID int) error {
-	p.changeSessionData(userID, &Session{status: statusOK})
+	p.sessions[userID].status = statusOK
 	return p.tg.SendMessage(chatID, msgOperationCancelled)
 }
 
