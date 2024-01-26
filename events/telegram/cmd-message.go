@@ -27,9 +27,6 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	}()
 
 	text = strings.TrimSpace(text)
-	if p.sessions[userID].currentOperation == GetNameCmd && len(text) > 60 {
-		return p.tg.SendMessage(chatID, msgLongMessage)
-	}
 	log.Printf("got new command '%s' from '%d'", text, userID)
 
 	if text == CancelCmd {
@@ -47,6 +44,9 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		case RenameFolderCmd:
 			err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
 		case GetNameCmd:
+			if len(text) > maxCallbackMsgLen {
+				return p.tg.SendMessage(chatID, msgLongMessage)
+			}
 			p.changeSessionName(userID, text)
 			p.changeSessionOperation(userID, SaveLinkCmd)
 			err = p.chooseFolder(context.Background(), chatID, userID)

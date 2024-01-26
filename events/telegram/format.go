@@ -10,7 +10,7 @@ func linkList(links []string, names []string) string {
 
 	for i, link := range links {
 		if len(link) > maxCallbackMsgLen && len(names[i]) > maxCallbackMsgLen &&
-			link[:maxCallbackMsgLen-5] == names[i][:maxCallbackMsgLen-5] {
+			link[:maxCallbackMsgLen-5] == names[i][:maxCallbackMsgLen-5] || link == names[i] {
 			enumerated.WriteString(strconv.Itoa(i+1) + ".\n" + link + "\n\n")
 		} else {
 			enumerated.WriteString(strconv.Itoa(i+1) + ". " + names[i] + "\n" + link + "\n\n")

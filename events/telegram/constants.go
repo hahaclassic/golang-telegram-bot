@@ -100,7 +100,7 @@ const (
 	msgChooseLink         = "Choose link for deletion"
 	msgEnterFolderName    = "Enter the folder name"
 	msgEnterNewFolderName = "Enter new folder name"
-	msgEnterUrlName       = "Enter short name (tag) for link"
+	msgEnterUrlName       = "Enter short description (tag) for link"
 )
 
 const (
