@@ -90,6 +90,7 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 	case ChooseLinkForDeletionCmd:
 		return p.chooseFolder(context.Background(), chatID, userID)
 	default:
+		p.sessions[userID].status = statusOK
 		return p.tg.SendMessage(chatID, msgUnknownCommand)
 	}
 }

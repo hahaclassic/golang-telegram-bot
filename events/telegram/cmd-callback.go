@@ -34,7 +34,7 @@ func (p *Processor) doCallbackCmd(text string, meta *CallbackMeta) (err error) {
 		return p.chooseLinkForDeletion(context.Background(), meta)
 
 	case GetNameCmd:
-		p.sessions[meta.UserID].currentOperation = RenameFolderCmd
+		p.sessions[meta.UserID].currentOperation = SaveLinkCmd
 		p.sessions[meta.UserID].name = trimLink(p.sessions[meta.UserID].url)
 		err = p.chooseFolder(context.Background(), meta.ChatID, meta.UserID)
 
