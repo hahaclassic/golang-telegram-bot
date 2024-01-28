@@ -114,11 +114,7 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 		}
 	}
 
-	if err = p.doCallbackCmd(event.Text, &meta); err != nil {
-		return err
-	}
-
-	return nil
+	return p.doCallbackCmd(event.Text, &meta)
 }
 
 func (p *Processor) processMessage(event events.Event) (err error) {
@@ -139,13 +135,10 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 		p.sessions[meta.UserID] = &Session{
 			status: statusOK,
 		}
+		return p.startCmd(event.Text, meta.ChatID, meta.UserID)
 	}
 
-	if err := p.doCmd(event.Text, meta.ChatID, meta.UserID); err != nil {
-		return err
-	}
-
-	return nil
+	return p.handleCmd(event.Text, meta.ChatID, meta.UserID)
 }
 
 func getMessageMeta(event events.Event) (MessageMeta, error) {

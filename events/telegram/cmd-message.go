@@ -11,8 +11,154 @@ import (
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
-func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
+// func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 
+// 	defer func() {
+// 		// В случае ошибки мы прерываем выполнение операции
+// 		if err != nil {
+// 			p.sessions[userID].status = statusOK
+// 		}
+// 		// Отсутствие папок не является ошибкой, которую необходимо логировать.
+// 		if err == ErrNoFolders {
+// 			err = nil
+// 		}
+// 	}()
+
+// 	text = strings.TrimSpace(text)
+// 	log.Printf("got new command '%s' from '%d'", text, userID)
+
+// 	if text == CancelCmd {
+// 		return p.cancelOperation(chatID, userID)
+// 	}
+
+// 	// Завершение/продолжение операции, если она в статусе обработки.
+// 	if !p.sessions[userID].status {
+// 		if p.sessions[userID].currentOperation != GetNameCmd {
+// 			p.sessions[userID].status = statusOK
+// 		}
+// 		switch p.sessions[userID].currentOperation {
+// 		case CreateFolderCmd:
+// 			err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
+// 		case RenameFolderCmd:
+// 			err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
+// 		case GetNameCmd:
+// 			if len(text) > maxCallbackMsgLen {
+// 				return p.tg.SendMessage(chatID, msgLongMessage)
+// 			}
+// 			p.sessions[userID].name = text
+// 			p.sessions[userID].currentOperation = SaveLinkCmd
+// 			err = p.chooseFolder(context.Background(), chatID, userID)
+// 		default:
+// 			err = p.unknownCommandHelp(chatID, userID)
+// 		}
+// 		return err
+// 	}
+
+// 	// Добавление ссылки, если текст сообщения является ссылкой.
+// 	if isAddCmd(text) {
+// 		p.sessions[userID].url = text
+// 		p.sessions[userID].currentOperation = GetNameCmd
+// 		p.sessions[userID].status = statusProcessing
+// 		return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"})
+// 	}
+
+// 	// // Начало выполнения новой операции.
+// 	// // Обработка однотактовых операций.
+// 	switch text {
+// 	case StartCmd:
+// 		return p.sendHello(chatID)
+// 	case RusHelpCmd:
+// 		return p.sendRusHelp(chatID)
+// 	case HelpCmd:
+// 		return p.sendHelp(chatID)
+// 	case RndCmd:
+// 		return p.sendRandom(context.Background(), chatID, userID)
+// 	}
+
+// 	// // Обработка сложных операций
+// 	p.sessions[userID].currentOperation = text
+// 	p.sessions[userID].status = statusProcessing
+// 	switch text {
+// 	case CreateFolderCmd:
+// 		return p.tg.SendMessage(chatID, msgEnterFolderName)
+// 	case ShowFolderCmd:
+// 		return p.chooseFolder(context.Background(), chatID, userID)
+// 	case ChooseFolderForRenamingCmd:
+// 		return p.chooseFolder(context.Background(), chatID, userID)
+// 	case DeleteFolderCmd:
+// 		return p.chooseFolder(context.Background(), chatID, userID)
+// 	case ChooseLinkForDeletionCmd:
+// 		return p.chooseFolder(context.Background(), chatID, userID)
+// 	default:
+// 		p.sessions[userID].status = statusOK
+// 		return p.tg.SendMessage(chatID, msgUnknownCommand)
+// 	}
+// }
+
+// text = text of the message
+func (p *Processor) startCmd(text string, chatID int, userID int) (err error) {
+
+	defer func() {
+		// В случае ошибки мы прерываем выполнение операции
+		if err != nil {
+			p.sessions[userID].status = statusOK
+		}
+		// Отсутствие папок не является ошибкой, которую необходимо логировать.
+		if err == ErrNoFolders {
+			err = nil
+		}
+	}()
+
+	text = strings.TrimSpace(text)
+	log.Printf("got new command '%s' from '%d'", text, userID)
+
+	if text == CancelCmd {
+		return p.tg.SendMessage(chatID, msgNoCurrentOperation)
+	}
+
+	// Начало процесса добавление ссылки, если текст сообщения является ссылкой.
+	if isAddCmd(text) {
+		p.sessions[userID].url = text
+		p.sessions[userID].currentOperation = GetNameCmd
+		p.sessions[userID].status = statusProcessing
+		return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"})
+	}
+
+	// Обработка однотактовых операций.
+	switch text {
+	case StartCmd:
+		return p.sendHello(chatID)
+	case RusHelpCmd:
+		return p.sendRusHelp(chatID)
+	case HelpCmd:
+		return p.sendHelp(chatID)
+	case RndCmd:
+		return p.sendRandom(context.Background(), chatID, userID)
+	}
+
+	// Обработка сложных операций
+	p.sessions[userID].currentOperation = text
+	p.sessions[userID].status = statusProcessing
+	switch text {
+	case CreateFolderCmd:
+		err = p.tg.SendMessage(chatID, msgEnterFolderName)
+	case ShowFolderCmd:
+		err = p.chooseFolder(context.Background(), chatID, userID)
+	case ChooseFolderForRenamingCmd:
+		err = p.chooseFolder(context.Background(), chatID, userID)
+	case DeleteFolderCmd:
+		err = p.chooseFolder(context.Background(), chatID, userID)
+	case ChooseLinkForDeletionCmd:
+		err = p.chooseFolder(context.Background(), chatID, userID)
+	default:
+		p.sessions[userID].status = statusOK
+		err = p.tg.SendMessage(chatID, msgUnknownCommand)
+	}
+
+	return err
+}
+
+func (p *Processor) handleCmd(text string, chatID int, userID int) (err error) {
 	defer func() {
 		// В случае ошибки мы прерываем выполнение операции
 		if err != nil {
@@ -31,68 +177,26 @@ func (p *Processor) doCmd(text string, chatID int, userID int) (err error) {
 		return p.cancelOperation(chatID, userID)
 	}
 
-	// Завершение/продолжение операции, если она в статусе обработки.
-	if !p.sessions[userID].status {
-		if p.sessions[userID].currentOperation != GetNameCmd {
-			p.sessions[userID].status = statusOK
-		}
-		switch p.sessions[userID].currentOperation {
-		case CreateFolderCmd:
-			err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
-		case RenameFolderCmd:
-			err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
-		case GetNameCmd:
-			if len(text) > maxCallbackMsgLen {
-				return p.tg.SendMessage(chatID, msgLongMessage)
-			}
-			p.sessions[userID].name = text
-			p.sessions[userID].currentOperation = SaveLinkCmd
-			err = p.chooseFolder(context.Background(), chatID, userID)
-		default:
-			err = p.unknownCommandHelp(chatID, userID)
-		}
-		return err
-	}
-
-	// Добавление ссылки, если текст сообщения является ссылкой.
-	if isAddCmd(text) {
-		p.sessions[userID].url = text
-		p.sessions[userID].currentOperation = GetNameCmd
-		p.sessions[userID].status = statusProcessing
-		return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"})
-	}
-
-	// Начало выполнения новой операции.
-	// Обработка однотактовых операций.
-	switch text {
-	case StartCmd:
-		return p.sendHello(chatID)
-	case RusHelpCmd:
-		return p.sendRusHelp(chatID)
-	case HelpCmd:
-		return p.sendHelp(chatID)
-	case RndCmd:
-		return p.sendRandom(context.Background(), chatID, userID)
-	}
-
-	// Обработка сложных операций
-	p.sessions[userID].currentOperation = text
-	p.sessions[userID].status = statusProcessing
-	switch text {
-	case CreateFolderCmd:
-		return p.tg.SendMessage(chatID, msgEnterFolderName)
-	case ShowFolderCmd:
-		return p.chooseFolder(context.Background(), chatID, userID)
-	case ChooseFolderForRenamingCmd:
-		return p.chooseFolder(context.Background(), chatID, userID)
-	case DeleteFolderCmd:
-		return p.chooseFolder(context.Background(), chatID, userID)
-	case ChooseLinkForDeletionCmd:
-		return p.chooseFolder(context.Background(), chatID, userID)
-	default:
+	if p.sessions[userID].currentOperation != GetNameCmd {
 		p.sessions[userID].status = statusOK
-		return p.tg.SendMessage(chatID, msgUnknownCommand)
 	}
+	switch p.sessions[userID].currentOperation {
+	case CreateFolderCmd:
+		err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
+	case RenameFolderCmd:
+		err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
+	case GetNameCmd:
+		if len(text) > maxCallbackMsgLen {
+			return p.tg.SendMessage(chatID, msgLongMessage)
+		}
+		p.sessions[userID].name = text
+		p.sessions[userID].currentOperation = SaveLinkCmd
+		err = p.chooseFolder(context.Background(), chatID, userID)
+	default:
+		err = p.unknownCommandHelp(chatID, userID)
+	}
+
+	return err
 }
 
 func (p *Processor) cancelOperation(chatID int, userID int) error {
@@ -129,18 +233,14 @@ func (p *Processor) createFolder(ctx context.Context, chatID int, userID int, fo
 	defer func() { err = errhandling.WrapIfErr("can't create folder", err) }()
 
 	ok, err := p.storage.IsFolderExist(ctx, userID, folder)
-	if err != nil {
-		return err
-	}
-
-	if ok {
+	if err == nil && ok {
 		p.tg.SendMessage(chatID, msgFolderAlreadyExists)
-	} else {
+	} else if err == nil {
 		p.storage.NewFolder(ctx, userID, folder)
 		p.tg.SendMessage(chatID, msgNewFolderCreated)
 	}
 
-	return nil
+	return err
 }
 
 func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (err error) {

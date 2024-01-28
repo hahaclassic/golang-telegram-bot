@@ -74,14 +74,15 @@ const msgHello = "Hi there!\n\n" + msgHelp
 
 const (
 	// Error
-	msgUnknownCommand    = "Unknown command 🤔"
-	msgUnexpectedCommand = "Unexpected command 🤕"
-	msgFolderNotExists   = "This folder doesn't exist 🥺"
-	msgNoSavedPages      = "You have no saved pages 😢"
-	msgNoFolders         = "No existing folders 😢"
-	msgEmptyFolder       = "This folder is still empty 😢"
-	msgCantRename        = "Cannot be renamed. A folder with this name already exists 😧"
-	msgLongMessage       = "The message is too long, enter something shorter 🥴"
+	msgNoCurrentOperation = "At the moment, no operation is being performed 😶"
+	msgUnknownCommand     = "Unknown command 🤔"
+	msgUnexpectedCommand  = "Unexpected command 🤕"
+	msgFolderNotExists    = "This folder doesn't exist 🥺"
+	msgNoSavedPages       = "You have no saved pages 😢"
+	msgNoFolders          = "No existing folders 😢"
+	msgEmptyFolder        = "This folder is still empty 😢"
+	msgCantRename         = "Cannot be renamed. A folder with this name already exists 😧"
+	msgLongMessage        = "The message is too long, enter something shorter 🥴"
 
 	// Warning
 	msgFolderAlreadyExists = "This folder already exists 😌"
