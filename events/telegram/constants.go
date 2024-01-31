@@ -95,6 +95,7 @@ const (
 	msgPageDeleted        = "Link deleted 🫡"
 	msgFolderRenamed      = "Folder renamed 👌"
 	msgOperationCancelled = "Operation cancelled 🤓"
+	msgThanksForFeedback  = "Thank you for your help in improving our service! 🥺"
 
 	// Input Suggestion
 	msgChooseFolder       = "Choose folder"
@@ -102,6 +103,7 @@ const (
 	msgEnterFolderName    = "Enter the folder name"
 	msgEnterNewFolderName = "Enter new folder name"
 	msgEnterUrlName       = "Enter short description (tag) for link"
+	msgEnterFeedback      = "Write your feedback, ideas or suggestions. Don't worry, it's anonymous 💫"
 )
 
 const (
@@ -110,10 +112,13 @@ const (
 	StartCmd   = "/start"
 	CancelCmd  = "/cancel"
 
+	FeedbackCmd = "/feedback"
+
 	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
 	//ChangeFolderCmd = "/move"      // Меняет местонахождение ссылки
 	RndCmd = "/rnd" // Скидывает случайную ссылку
 	// RenameLink = "/rename"
+	// ChangeTagCmd = "/change_tag" // Изменение тега ссылки
 
 	ShowFolderCmd              = "/show"          // Показывает содержимое папки
 	CreateFolderCmd            = "/create"        // Создает новую папку

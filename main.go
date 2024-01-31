@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -18,6 +19,24 @@ const (
 	batchSize         = 100
 	errChanSize       = 100
 )
+
+var (
+	mainToken   string
+	loggerToken string
+	adminChatID int
+)
+
+func init() {
+	flag.StringVar(&mainToken, "tg-bot-token", "", "token for access to main telegram bot")
+	flag.StringVar(&loggerToken, "logger", "", "token for access to main logger bot")
+	flag.IntVar(&adminChatID, "admin", -1, "admin chatID")
+	flag.Parse()
+
+	if mainToken == "" || loggerToken == "" || adminChatID == -1 {
+		fmt.Println(mainToken, loggerToken, adminChatID)
+		log.Fatal("token is not specified")
+	}
+}
 
 func main() {
 	if _, err := os.Stat("/path/to/whatever"); os.IsNotExist(err) {
@@ -40,7 +59,12 @@ func main() {
 	}
 
 	// Create events Processor
-	eventsProcessor := telegram.New(tgClient.New(tgBotHost, mustToken()), s)
+	eventsProcessor := telegram.New(
+		tgClient.New(tgBotHost, mainToken),
+		tgClient.New(tgBotHost, loggerToken),
+		adminChatID,
+		s,
+	)
 
 	log.Print("[START]")
 
@@ -49,20 +73,4 @@ func main() {
 	if err := consumer.Start(); err != nil {
 		log.Fatal("service is stopped", err)
 	}
-}
-
-func mustToken() string {
-	token := flag.String(
-		"tg-bot-token",
-		"",
-		"token for access to telegram bot",
-	)
-
-	flag.Parse()
-
-	if *token == "" {
-		log.Fatal("token is not specified")
-	}
-
-	return *token
 }

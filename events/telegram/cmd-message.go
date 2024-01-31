@@ -150,6 +150,10 @@ func (p *Processor) startCmd(text string, chatID int, userID int) (err error) {
 		err = p.chooseFolder(context.Background(), chatID, userID)
 	case ChooseLinkForDeletionCmd:
 		err = p.chooseFolder(context.Background(), chatID, userID)
+	case FeedbackCmd:
+		err = p.tg.SendMessage(chatID, msgEnterFeedback)
+	// case ChangeTagCmd:
+	// 	err = p.chooseFolder(context.Background(), chatID, userID)
 	default:
 		p.sessions[userID].status = statusOK
 		err = p.tg.SendMessage(chatID, msgUnknownCommand)
@@ -185,6 +189,9 @@ func (p *Processor) handleCmd(text string, chatID int, userID int) (err error) {
 		err = p.createFolder(context.Background(), chatID, userID, text) // text == folderName
 	case RenameFolderCmd:
 		err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
+	case FeedbackCmd:
+		err = p.tg.SendMessage(chatID, msgThanksForFeedback)
+		err = p.logger.SendMessage(p.adminChatID, "#feedback:\n\n"+text)
 	case GetNameCmd:
 		if len(text) > maxCallbackMsgLen {
 			return p.tg.SendMessage(chatID, msgLongMessage)

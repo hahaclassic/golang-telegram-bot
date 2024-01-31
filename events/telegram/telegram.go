@@ -12,10 +12,12 @@ import (
 
 // Данный тип реализует сразу два интерфейса: Processor() и Fetcher()
 type Processor struct {
-	tg       *tgClient.Client
-	offset   int
-	storage  storage.Storage
-	sessions map[int]*Session
+	tg          *tgClient.Client
+	logger      *tgClient.Client
+	adminChatID int
+	offset      int
+	storage     storage.Storage
+	sessions    map[int]*Session
 }
 
 // При статусе ОК сессия будет удалятся из карты. (Возможно, будет удаляется через некоторое время)
@@ -51,11 +53,13 @@ var (
 	ErrEmptyFolder     = errors.New("Empty folder")
 )
 
-func New(client *tgClient.Client, storage storage.Storage) *Processor {
+func New(client *tgClient.Client, logger *tgClient.Client, adminChatID int, storage storage.Storage) *Processor {
 	return &Processor{
-		tg:       client,
-		storage:  storage,
-		sessions: make(map[int]*Session),
+		tg:          client,
+		logger:      logger,
+		adminChatID: adminChatID,
+		storage:     storage,
+		sessions:    make(map[int]*Session),
 	}
 }
 
