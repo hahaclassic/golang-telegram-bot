@@ -8,65 +8,69 @@ import (
 	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
-func (s *Storage) NewPage(url string, name string, userID int, folder string) *storage.Page {
+func (s *Storage) NewPage(url string, tag string, folderID string) *storage.Page {
 	return &storage.Page{
-		URL:    url,
-		Name:   name,
-		UserID: userID,
-		Folder: folder,
+		URL:      url,
+		Tag:      tag,
+		FolderID: folderID,
 	}
 }
 
 // Save() adds page in the storage
-func (s *Storage) Save(ctx context.Context, p *storage.Page) error {
-	q := `INSERT INTO pages (url, name, userID, folder) VALUES (?, ?, ?, ?)`
+// UNSAFE. The access level is not checked.
+func (s *Storage) SavePage(ctx context.Context, p *storage.Page) error {
+	q := `INSERT INTO pages (url, tag, folder_id) VALUES (?, ?, ?)`
 
-	if _, err := s.db.ExecContext(ctx, q, p.URL, p.Name, p.UserID, p.Folder); err != nil {
-		return errhandling.Wrap("can't save page", err)
-	}
+	_, err := s.db.ExecContext(ctx, q, p.URL, p.URL, p.Tag, p.FolderID)
 
-	return nil
+	return errhandling.WrapIfErr("can't save page", err)
 }
 
 // PickRandom() picks random page in the storage
-func (s *Storage) PickRandom(ctx context.Context, userID int) (*storage.Page, error) {
-	q := `SELECT url FROM pages WHERE userID = ? ORDER BY RANDOM() LIMIT 1`
+func (s *Storage) PickRandom(ctx context.Context, userID int) (string, error) {
 
-	var url string
+	var url, folderID string
 
-	err := s.db.QueryRowContext(ctx, q, userID).Scan(&url)
+	q := `SELECT folder_id FROM folders WHERE user_id = ? ORDER BY RANDOM() LIMIT 1`
 
+	err := s.db.QueryRowContext(ctx, q, userID).Scan(&folderID)
 	if err == sql.ErrNoRows {
-		return nil, storage.ErrNoSavedPages
+		return "", storage.ErrNoSavedPages
 	}
 	if err != nil {
-		return nil, errhandling.Wrap("can't pick random page:", err)
+		return "", errhandling.Wrap("can't pick random page:", err)
 	}
 
-	return &storage.Page{
-		URL:    url,
-		UserID: userID,
-	}, nil
+	q = `SELECT url FROM pages WHERE folder_id = ? ORDER BY RANDOM() LIMIT 1`
+
+	err = s.db.QueryRowContext(ctx, q, userID).Scan(&url)
+	if err == sql.ErrNoRows {
+		return "", storage.ErrNoSavedPages
+	}
+	if err != nil {
+		return "", errhandling.Wrap("can't pick random page:", err)
+	}
+
+	return url, nil
 }
 
 // Remove() deletes the required page
-func (s *Storage) Remove(ctx context.Context, page *storage.Page) error {
-	q := `DELETE FROM pages WHERE name = ? AND userID = ? AND folder = ?`
+// UNSAFE. The access level is not checked.
+func (s *Storage) RemovePage(ctx context.Context, page *storage.Page) error {
+	q := `DELETE FROM pages WHERE (url = ? OR tag = ?) AND folder_id = ?`
 
-	if _, err := s.db.ExecContext(ctx, q, page.Name, page.UserID, page.Folder); err != nil {
-		return errhandling.Wrap("can't remove page", err)
-	}
+	_, err := s.db.ExecContext(ctx, q, page.URL, page.Tag, page.FolderID)
 
-	return nil
+	return errhandling.WrapIfErr("can' remove page", err)
 }
 
 // IsExists() checks if pages exists in storage
-func (s *Storage) IsExist(ctx context.Context, page *storage.Page) (bool, error) {
-	q := `SELECT COUNT(*) FROM pages WHERE (url = ? OR name = ?) AND userID = ? AND folder = ?`
+func (s *Storage) IsPageExist(ctx context.Context, page *storage.Page) (bool, error) {
+	q := `SELECT COUNT(*) FROM pages WHERE (url = ? OR tag = ?) AND folder_id = ?`
 
 	var count int
 
-	if err := s.db.QueryRowContext(ctx, q, page.URL, page.Name, page.UserID, page.Folder).Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, page.URL, page.Tag, page.FolderID).Scan(&count); err != nil {
 		return false, errhandling.Wrap("can't check if page exists", err)
 	}
 
