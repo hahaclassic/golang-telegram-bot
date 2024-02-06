@@ -33,6 +33,7 @@ type Chat struct {
 }
 
 type ReplyMessage struct {
+	//MessageID   int                  `json:"message_id"`
 	ChatID      int                  `json:"chat_id"`
 	Text        string               `json:"text"`
 	ReplyMarkup InlineKeyboardMarkup `json:"reply_markup,omitempty"`
@@ -41,6 +42,7 @@ type ReplyMessage struct {
 type StandardMessage struct {
 	ChatID int    `json:"chat_id"`
 	Text   string `json:"text"`
+	//MessageID int    `json:"message_id"`
 }
 
 type InlineKeyboardMarkup struct {

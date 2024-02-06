@@ -24,9 +24,11 @@ const (
 	getUpdatesMethod          = "getUpdates"
 	sendMessageMethod         = "sendMessage"
 	AnswerCallbackQueryMethod = "answerCallbackQuery"
+	deleteMessageMethod       = "deleteMessage"
 )
 
 var NoDataErr = errors.New("no data")
+var WrongDataErr = errors.New("wrong data")
 
 func New(host string, token string) *Client {
 	return &Client{
@@ -80,18 +82,42 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	return nil
 }
 
-func (c *Client) SendCallbackMessage(chatID int, text string, list []string) error {
+// func (c *Client) DeleteMessage(chatID int, messageID int) error {
+// 	data := StandardMessage{
+// 		ChatID:    chatID,
+// 		MessageID: messageID,
+// 	}
+
+// 	// Get json
+// 	EncodedData, err := json.Marshal(data)
+// 	if err != nil {
+// 		return errhandling.Wrap("can't get json", err)
+// 	}
+
+// 	_, err = c.doPostRequest(deleteMessageMethod, EncodedData)
+// 	if err != nil {
+// 		return errhandling.Wrap("can't send a message", err)
+// 	}
+
+// 	return nil
+// }
+
+func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []string, callbackData []string) error {
 	buttons := [][]InlineKeyboardButton{}
 
-	if list == nil || len(list) == 0 {
+	if buttonsText == nil || len(buttonsText) == 0 ||
+		callbackData == nil || len(callbackData) == 0 {
 		return NoDataErr
 	}
+	if len(buttonsText) != len(callbackData) {
+		return WrongDataErr
+	}
 
-	for _, url := range list {
+	for i := 0; i < len(buttonsText); i++ {
 		inline := []InlineKeyboardButton{}
 		inline = append(inline, InlineKeyboardButton{
-			Text:         url,
-			CallbackData: url,
+			Text:         buttonsText[i],
+			CallbackData: callbackData[i],
 		})
 		buttons = append(buttons, inline)
 	}
@@ -166,13 +192,17 @@ func (c *Client) doPostRequest(method string, jsonData []byte) (data []byte, err
 		return nil, err
 	}
 
-	// var r UpdatesResponse
+	// r := UpdatesResponse{}
 
 	// err = json.Unmarshal(body, &r)
-	// log.Println(r.Result, r.Ok)
+	// log.Println(r)
 
+	// message := StandardMessage{}
+	// err = json.Unmarshal(body, &message)
 	// if err != nil {
-	// 	return nil, err
+	// 	log.Println(err)
+	// } else {
+	// 	log.Println(message)
 	// }
 
 	return body, nil
