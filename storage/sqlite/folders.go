@@ -76,8 +76,8 @@ func (s *Storage) GetAccessLvl(ctx context.Context, userID int, folderID string)
 // UNSAFE. The existence of the folder is not checked.
 func (s *Storage) AddFolder(ctx context.Context, folder *storage.Folder) error {
 
-	q := `INSERT INTO folders (folder_id, folder_name TEXT, access_level, \
-		user_id, username) VALUES (?, ?, ?)`
+	q := `INSERT INTO folders (folder_id, folder_name, access_level, 
+		user_id, username) VALUES (?, ?, ?, ?, ?)`
 
 	_, err := s.db.ExecContext(ctx, q, folder.ID, folder.Name, folder.AccessLvl,
 		folder.UserID, folder.Username)
@@ -171,7 +171,7 @@ func (s *Storage) GetFolders(ctx context.Context, userID int) (folders [][]strin
 		if err := rows.Scan(&temp); err != nil {
 			return nil, err
 		}
-		folders[0] = append(folders[0], temp)
+		folders[1] = append(folders[1], temp)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

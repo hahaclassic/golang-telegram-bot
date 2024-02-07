@@ -19,7 +19,10 @@ const (
 )
 
 type Event struct {
-	Type Type
-	Text string
-	Meta interface{}
+	Type     Type
+	Text     string
+	ChatID   int
+	UserID   int
+	Username string
+	Meta     interface{}
 }

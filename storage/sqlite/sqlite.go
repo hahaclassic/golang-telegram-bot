@@ -37,7 +37,7 @@ func (s *Storage) Init(ctx context.Context) error {
 		return errhandling.Wrap("can't create table 'pages'", err)
 	}
 
-	q = `CREATE TABLE IF NOT EXISTS folders (folder_id TEXT, folder_name TEXT, \
+	q = `CREATE TABLE IF NOT EXISTS folders (folder_id TEXT, folder_name TEXT, 
 		access_level INTEGER, user_id INTEGER, username TEXT)`
 	_, err = s.db.ExecContext(ctx, q)
 	if err != nil {

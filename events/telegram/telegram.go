@@ -24,26 +24,20 @@ type Processor struct {
 type Session struct {
 	currentOperation string
 	url              string
-	name             string
-	folder           string
+	tag              string
+	folderName       string
 	status           bool
 }
 
-type MessageMeta struct {
-	ChatID int
-	UserID int
-}
-
 type CallbackMeta struct {
+	Data    string
 	QueryID string
-	UserID  int
-	Message string
-	ChatID  int
 }
 
 const (
 	statusOK         = true
 	statusProcessing = false
+	maxAttemts       = 100
 )
 
 var (
@@ -107,103 +101,72 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 	}
 
 	defer func() {
-		if err != nil || p.sessions[meta.UserID].status == statusOK {
-			delete(p.sessions, meta.UserID)
+		if err != nil || p.sessions[event.UserID].status == statusOK {
+			delete(p.sessions, event.UserID)
 		}
 	}()
 
-	if _, ok := p.sessions[meta.UserID]; !ok {
-		p.sessions[meta.UserID] = &Session{
-			status: statusOK,
-		}
+	if _, ok := p.sessions[event.UserID]; !ok {
+		p.sessions[event.UserID] = &Session{status: statusOK}
 	}
 
-	return p.doCallbackCmd(event.Text, &meta)
+	return p.doCallbackCmd(&event, meta)
 }
 
 func (p *Processor) processMessage(event events.Event) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't process message", err) }()
 
-	meta, err := getMessageMeta(event)
-	if err != nil {
-		return err
-	}
-
 	defer func() {
-		if err != nil || p.sessions[meta.UserID].status == statusOK {
-			delete(p.sessions, meta.UserID)
+		if err != nil || p.sessions[event.UserID].status == statusOK {
+			delete(p.sessions, event.UserID)
 		}
 	}()
 
-	if _, ok := p.sessions[meta.UserID]; !ok {
-		p.sessions[meta.UserID] = &Session{
-			status: statusOK,
-		}
-		return p.startCmd(event.Text, meta.ChatID, meta.UserID)
+	if _, ok := p.sessions[event.UserID]; !ok {
+		p.sessions[event.UserID] = &Session{status: statusOK}
+		return p.startCmd(&event)
 	}
 
-	return p.handleCmd(event.Text, meta.ChatID, meta.UserID)
+	return p.handleCmd(&event)
 }
 
-func getMessageMeta(event events.Event) (MessageMeta, error) {
-	res, ok := event.Meta.(MessageMeta)
+func getCallbackMeta(event events.Event) (*CallbackMeta, error) {
+	meta, ok := event.Meta.(CallbackMeta)
 	if !ok {
-		return MessageMeta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
+		return nil, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
 	}
 
-	return res, nil
-}
-
-func getCallbackMeta(event events.Event) (CallbackMeta, error) {
-	res, ok := event.Meta.(CallbackMeta)
-	if !ok {
-		return CallbackMeta{}, errhandling.Wrap("can't get meta", ErrUnknownMetaType)
-	}
-
-	return res, nil
+	return &meta, nil
 }
 
 func event(upd tgClient.Update) events.Event {
-	updType := fetchType(upd)
 
 	res := events.Event{
-		Type: updType,
-		Text: fetchText(upd),
+		Type: fetchType(upd),
 	}
 
-	if updType == events.Message {
-		res.Meta = MessageMeta{
-			ChatID: upd.Message.Chat.ID,
-			UserID: upd.Message.From.UserID,
-		}
-	} else if updType == events.CallbackQuery {
-		res.Meta = CallbackMeta{
-			QueryID: upd.CallbackQuery.QueryID,
-			UserID:  upd.CallbackQuery.From.UserID,
-			Message: upd.CallbackQuery.Message.Text,
-			ChatID:  upd.CallbackQuery.Message.Chat.ID,
-		}
+	if res.Type == events.Message {
+		res.ChatID = upd.Message.Chat.ID
+		res.Text = upd.Message.Text
+		res.UserID = upd.Message.From.UserID
+		res.Username = upd.Message.From.Username
+	} else if res.Type == events.CallbackQuery {
+		res.ChatID = upd.CallbackQuery.Message.Chat.ID
+		res.Text = upd.CallbackQuery.Message.Text
+		res.UserID = upd.CallbackQuery.From.UserID
+		res.Username = upd.CallbackQuery.From.Username
 	}
 
 	return res
 }
 
-func fetchText(upd tgClient.Update) string {
-	if upd.Message != nil {
-		return upd.Message.Text
-	} else if upd.CallbackQuery != nil {
-		return upd.CallbackQuery.Data
-	}
-
-	return ""
-}
-
 func fetchType(upd tgClient.Update) events.Type {
-	if upd.Message != nil {
+	switch {
+	case upd.Message != nil:
 		return events.Message
-	} else if upd.CallbackQuery != nil {
+	case upd.CallbackQuery != nil:
 		return events.CallbackQuery
+	default:
+		return events.Unknown
 	}
-
-	return events.Unknown
 }
