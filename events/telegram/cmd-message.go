@@ -34,13 +34,13 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 	}
 
 	// Начало процесса добавление ссылки, если текст сообщения является ссылкой.
-	// if isAddCmd(text) {
-	// 	p.sessions[userID].url = text
-	// 	p.sessions[userID].currentOperation = GetNameCmd
-	// 	p.sessions[userID].status = statusProcessing
-
-	// 	return p.tg.SendCallbackMessage(chatID, msgEnterUrlName, []string{"without a tag"}, [])
-	// }
+	if isAddCmd(event.Text) {
+		p.sessions[event.UserID].url = event.Text
+		p.sessions[event.UserID].currentOperation = GetNameCmd
+		p.sessions[event.UserID].status = statusProcessing
+		button := []string{"without a tag"}
+		return p.tg.SendCallbackMessage(event.ChatID, msgEnterUrlName, button, button)
+	}
 
 	// Обработка однотактовых операций.
 	switch event.Text {
@@ -51,7 +51,7 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 	case HelpCmd:
 		return p.sendHelp(event.ChatID)
 	case RndCmd:
-		// return p.sendRandom(context.Background(), chatID, userID)
+		return p.sendRandom(context.Background(), event.ChatID, event.UserID)
 	}
 
 	// Обработка сложных операций
@@ -106,7 +106,7 @@ func (p *Processor) handleCmd(event *events.Event) (err error) {
 	case CreateFolderCmd:
 		err = p.createFolder(context.Background(), event) // text == folderName
 	case RenameFolderCmd:
-		// err = p.renameFolder(context.Background(), chatID, userID, text) // text == folderName
+		err = p.renameFolder(context.Background(), event) // text == folderName
 	case FeedbackCmd:
 		err = p.tg.SendMessage(event.ChatID, msgThanksForFeedback)
 		err = p.logger.SendMessage(p.adminChatID, "#feedback\n\n"+event.Text)
@@ -141,8 +141,6 @@ func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
 		message += "Select the folder where you want to delete the link " + msgCancel
 	case DeleteLinkCmd:
 		message += "Select the link you want to delete "
-	// case CreateFolderCmd:
-	// 	message += "Enter new folder's name " + msgCancel
 	case ShowFolderCmd:
 		message += "Select the folder whose contents you want to see " + msgCancel
 	case DeleteFolderCmd:
@@ -197,47 +195,61 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 		return err
 	}
 	if len(folders[0]) == 0 {
+		p.sessions[userID].status = statusOK
 		return p.tg.SendMessage(chatID, msgNoFolders)
 	}
 
 	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders[1], folders[1])
 }
 
-// func (p *Processor) renameFolder(ctx context.Context, chatID int, userID int, newFolder string) error {
+// event.Text == newFolderName
+func (p *Processor) renameFolder(ctx context.Context, event *events.Event) (err error) {
 
-// 	ok, err := p.storage.IsFolderExist(ctx, userID, newFolder)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't rename folder", err)
-// 	}
-// 	if ok {
-// 		return p.tg.SendMessage(chatID, msgCantRename)
-// 	}
+	defer func() { err = errhandling.WrapIfErr("can't rename folder", err) }()
 
-// 	err = p.storage.RenameFolder(ctx, userID, newFolder, p.sessions[userID].folder)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't rename folder", err)
-// 	}
+	folderID, err := p.storage.FolderID(ctx, event.UserID, p.sessions[event.UserID].folderName)
+	if err != nil {
+		return err
+	}
 
-// 	return p.tg.SendMessage(chatID, msgFolderRenamed)
-// }
+	access, err := p.storage.GetAccessLvl(ctx, event.UserID, folderID)
+	if err != nil {
+		return err
+	}
+	if access != storage.Owner {
+		p.sessions[event.UserID].status = statusOK
+		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
+	}
 
-// func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
-// 	defer func() { err = errhandling.WrapIfErr("can't do command: can't send random", err) }()
+	_, err = p.storage.FolderID(ctx, event.UserID, event.Text)
+	if err == nil {
+		return p.tg.SendMessage(event.ChatID, msgCantRename)
+	}
+	if err != storage.ErrNoFolders {
+		return err
+	}
 
-// 	page, err := p.storage.PickRandom(ctx, userID)
-// 	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
-// 		return err
-// 	}
-// 	if errors.Is(err, storage.ErrNoSavedPages) {
-// 		return p.tg.SendMessage(chatID, msgNoSavedPages)
-// 	}
+	err = p.storage.RenameFolder(ctx, folderID, event.Text)
+	if err != nil {
+		return errhandling.Wrap("can't rename folder", err)
+	}
 
-// 	if err := p.tg.SendMessage(chatID, page.URL); err != nil {
-// 		return err
-// 	}
+	return p.tg.SendMessage(event.ChatID, msgFolderRenamed)
+}
 
-// 	return p.storage.Remove(ctx, page)
-// }
+func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
+	defer func() { err = errhandling.WrapIfErr("can't do command: can't send random", err) }()
+
+	page, err := p.storage.PickRandom(ctx, userID)
+	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
+		return err
+	}
+	if errors.Is(err, storage.ErrNoSavedPages) {
+		return p.tg.SendMessage(chatID, msgNoSavedPages)
+	}
+
+	return p.tg.SendMessage(chatID, page)
+}
 
 func (p *Processor) sendHelp(chatID int) error {
 	return p.tg.SendMessage(chatID, msgHelp)

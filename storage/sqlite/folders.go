@@ -35,24 +35,23 @@ func (s *Storage) IsFolderExist(ctx context.Context, folderID string) (bool, err
 	var count int
 
 	if err := s.db.QueryRowContext(ctx, q, folderID).Scan(&count); err != nil {
-		return false, errhandling.Wrap("can't check if page exists", err)
+		return false, errhandling.Wrap("can't check if folder exists", err)
 	}
 
 	return count > 0, nil
 }
 
 // FolderID()
-func (s *Storage) FolderID(ctx context.Context, userID int, folderName string) (string, error) {
+func (s *Storage) FolderID(ctx context.Context, userID int, folderName string) (folderID string, err error) {
+
 	q := `SELECT folder_id FROM folders WHERE user_id = ? AND folder_name = ?`
 
-	var folderID string
-
-	err := s.db.QueryRowContext(ctx, q, userID, folderName).Scan(&folderID)
+	err = s.db.QueryRowContext(ctx, q, userID, folderName).Scan(&folderID)
 	if err == sql.ErrNoRows {
 		return "", storage.ErrNoFolders
 	}
 	if err != nil {
-		return "", errhandling.Wrap("can't check if folder exists", err)
+		return "", err
 	}
 
 	return folderID, nil
@@ -65,7 +64,7 @@ func (s *Storage) GetAccessLvl(ctx context.Context, userID int, folderID string)
 
 	q := `SELECT access_level FROM folders WHERE user_id = ? AND folder_id = ?`
 
-	if err := s.db.QueryRowContext(ctx, q, userID).Scan(&accessLvl); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, userID, folderID).Scan(&accessLvl); err != nil {
 		return storage.Undefined, errhandling.Wrap("cant get access_level", err)
 	}
 
@@ -123,7 +122,7 @@ func (s *Storage) DeleteAccess(ctx context.Context, userID int, folderID string)
 func (s *Storage) RenameFolder(ctx context.Context, folderID string, folderName string) error {
 	q := `UPDATE folders SET folder_name = ? WHERE folder_id = ?`
 
-	_, err := s.db.ExecContext(ctx, q, folderID, folderName)
+	_, err := s.db.ExecContext(ctx, q, folderName, folderID)
 
 	return errhandling.WrapIfErr("can't rename folder", err)
 }

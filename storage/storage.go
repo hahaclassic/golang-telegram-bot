@@ -7,7 +7,7 @@ import (
 
 type Storage interface {
 	// Pages
-	NewPage(url string, name string, folderID string) *Page
+	NewPage(url string, tag string, folderID string) *Page
 	SavePage(ctx context.Context, p *Page) error
 	PickRandom(ctx context.Context, userID int) (string, error)
 	RemovePage(ctx context.Context, p *Page) error

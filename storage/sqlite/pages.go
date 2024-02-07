@@ -21,7 +21,7 @@ func (s *Storage) NewPage(url string, tag string, folderID string) *storage.Page
 func (s *Storage) SavePage(ctx context.Context, p *storage.Page) error {
 	q := `INSERT INTO pages (url, tag, folder_id) VALUES (?, ?, ?)`
 
-	_, err := s.db.ExecContext(ctx, q, p.URL, p.URL, p.Tag, p.FolderID)
+	_, err := s.db.ExecContext(ctx, q, p.URL, p.Tag, p.FolderID)
 
 	return errhandling.WrapIfErr("can't save page", err)
 }
@@ -31,9 +31,9 @@ func (s *Storage) PickRandom(ctx context.Context, userID int) (string, error) {
 
 	var url, folderID string
 
-	q := `SELECT folder_id FROM folders WHERE user_id = ? ORDER BY RANDOM() LIMIT 1`
+	q := `SELECT folder_id FROM folders WHERE user_id = ? AND access_level != ? ORDER BY RANDOM() LIMIT 1`
 
-	err := s.db.QueryRowContext(ctx, q, userID).Scan(&folderID)
+	err := s.db.QueryRowContext(ctx, q, userID, storage.Banned).Scan(&folderID)
 	if err == sql.ErrNoRows {
 		return "", storage.ErrNoSavedPages
 	}
@@ -43,7 +43,7 @@ func (s *Storage) PickRandom(ctx context.Context, userID int) (string, error) {
 
 	q = `SELECT url FROM pages WHERE folder_id = ? ORDER BY RANDOM() LIMIT 1`
 
-	err = s.db.QueryRowContext(ctx, q, userID).Scan(&url)
+	err = s.db.QueryRowContext(ctx, q, folderID).Scan(&url)
 	if err == sql.ErrNoRows {
 		return "", storage.ErrNoSavedPages
 	}

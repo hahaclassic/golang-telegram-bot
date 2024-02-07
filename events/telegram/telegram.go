@@ -155,6 +155,10 @@ func event(upd tgClient.Update) events.Event {
 		res.Text = upd.CallbackQuery.Message.Text
 		res.UserID = upd.CallbackQuery.From.UserID
 		res.Username = upd.CallbackQuery.From.Username
+		res.Meta = CallbackMeta{
+			Data:    upd.CallbackQuery.Data,
+			QueryID: upd.CallbackQuery.QueryID,
+		}
 	}
 
 	return res

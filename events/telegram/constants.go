@@ -83,6 +83,7 @@ const (
 	msgEmptyFolder        = "This folder is still empty 😢"
 	msgCantRename         = "Cannot be renamed. A folder with this name already exists 😧"
 	msgLongMessage        = "The message is too long, enter something shorter 🥴"
+	msgIncorrectAccessLvl = "The operation has been stopped. Unfortunately, you don't have the right level of access 🔒"
 
 	// Warning
 	msgFolderAlreadyExists = "This folder already exists 😌"

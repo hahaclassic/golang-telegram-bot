@@ -2,14 +2,17 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/events"
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
+	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err error) {
+
 	defer func() {
 		_ = p.tg.AnswerCallbackQuery(meta.QueryID)
 		if err == ErrEmptyFolder {
@@ -26,63 +29,73 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 
 	switch p.sessions[event.UserID].currentOperation {
 
-	// case ChooseFolderForRenamingCmd:
-	// 	p.sessions[meta.UserID].currentOperation = RenameFolderCmd
-	// 	return p.chooseFolderForRenaming(meta.ChatID)
+	case ChooseFolderForRenamingCmd:
+		p.sessions[event.UserID].currentOperation = RenameFolderCmd
+		return p.chooseFolderForRenaming(event.ChatID)
 
-	// case ChooseLinkForDeletionCmd:
-	// 	p.sessions[meta.UserID].currentOperation = DeleteLinkCmd
-	// 	return p.chooseLinkForDeletion(context.Background(), meta)
+	case ChooseLinkForDeletionCmd:
+		p.sessions[event.UserID].currentOperation = DeleteLinkCmd
+		return p.chooseLinkForDeletion(context.Background(), event)
 
 	case GetNameCmd:
 		p.sessions[event.UserID].currentOperation = SaveLinkCmd
 		p.sessions[event.UserID].tag = p.sessions[event.UserID].url
 		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
 
-		// case SaveLinkCmd:
-		// 	p.sessions[meta.UserID].status = statusOK
-		// 	return p.savePage(context.Background(), meta)
+	case SaveLinkCmd:
+		p.sessions[event.UserID].status = statusOK
+		return p.savePage(context.Background(), event)
 
-		// case ShowFolderCmd:
-		// 	p.sessions[meta.UserID].status = statusOK
-		// 	return p.showFolder(context.Background(), meta)
+	case ShowFolderCmd:
+		p.sessions[event.UserID].status = statusOK
+		return p.showFolder(context.Background(), event)
 
-		// case DeleteFolderCmd:
-		// 	p.sessions[meta.UserID].status = statusOK
-		// 	return p.deleteFolder(context.Background(), meta)
+	case DeleteFolderCmd:
+		p.sessions[event.UserID].status = statusOK
+		return p.deleteFolder(context.Background(), event)
 
-		// case DeleteLinkCmd:
-		// 	p.sessions[meta.UserID].status = statusOK
-		// 	return p.deleteLink(context.Background(), meta)
+	case DeleteLinkCmd:
+		p.sessions[event.UserID].status = statusOK
+		return p.deleteLink(context.Background(), event)
 	}
 
 	return nil
 }
 
-// func (p *Processor) savePage(ctx context.Context, meta *CallbackMeta) (err error) {
-// 	defer func() { err = errhandling.WrapIfErr("can't save page", err) }()
+func (p *Processor) savePage(ctx context.Context, event *events.Event) (err error) {
+	defer func() { err = errhandling.WrapIfErr("can't save page", err) }()
 
-// 	session := p.sessions[meta.UserID]
-// 	page := p.storage.NewPage(session.url, session.name, meta.UserID, session.folder)
+	session := p.sessions[event.UserID]
+	folderID, err := p.storage.FolderID(ctx, event.UserID, session.folderName)
+	if err != nil {
+		return err
+	}
 
-// 	isExists, err := p.storage.IsExist(ctx, page)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if isExists {
-// 		return p.tg.SendMessage(meta.ChatID, msgAlreadyExists)
-// 	}
+	access, err := p.storage.GetAccessLvl(ctx, event.UserID, folderID)
+	if err != nil {
+		return err
+	}
+	if access != storage.Owner && access != storage.Editor {
+		p.sessions[event.UserID].status = statusOK
+		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
+	}
 
-// 	if err := p.storage.Save(ctx, page); err != nil {
-// 		return err
-// 	}
+	page := p.storage.NewPage(session.url, session.tag, folderID)
 
-// 	if err := p.tg.SendMessage(meta.ChatID, msgSaved); err != nil {
-// 		return err
-// 	}
+	isExists, err := p.storage.IsPageExist(ctx, page)
+	if err != nil {
+		return err
+	}
+	if isExists {
+		return p.tg.SendMessage(event.ChatID, msgAlreadyExists)
+	}
 
-// 	return nil
-// }
+	if err := p.storage.SavePage(ctx, page); err != nil {
+		return err
+	}
+
+	return p.tg.SendMessage(event.ChatID, msgSaved)
+}
 
 func (p *Processor) showFolder(ctx context.Context, event *events.Event) (err error) {
 
@@ -102,7 +115,6 @@ func (p *Processor) showFolder(ctx context.Context, event *events.Event) (err er
 	if err != nil {
 		return errhandling.Wrap("can't show folder", err)
 	}
-
 	if len(urls) == 0 {
 		return p.tg.SendMessage(event.ChatID, msgEmptyFolder)
 	}
@@ -112,47 +124,83 @@ func (p *Processor) showFolder(ctx context.Context, event *events.Event) (err er
 	return p.tg.SendMessage(event.ChatID, result)
 }
 
-// func (p *Processor) deleteFolder(ctx context.Context, meta *CallbackMeta) error {
-// 	folder := p.sessions[meta.UserID].folder
-// 	err := p.storage.RemoveFolder(ctx, meta.UserID, folder)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't delete folder", err)
-// 	}
+func (p *Processor) deleteFolder(ctx context.Context, event *events.Event) error {
+	folderName := p.sessions[event.UserID].folderName
+	folderID, err := p.storage.FolderID(ctx, event.UserID, folderName)
+	if err != nil {
+		return err
+	}
 
-// 	return p.tg.SendMessage(meta.ChatID, msgFolderDeleted)
-// }
+	access, err := p.storage.GetAccessLvl(ctx, event.UserID, folderID)
+	if err != nil {
+		return err
+	}
+	if access != storage.Owner {
+		p.sessions[event.UserID].status = statusOK
+		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
+	}
 
-// func (p *Processor) chooseFolderForRenaming(chatID int) error {
-// 	return p.tg.SendMessage(chatID, msgEnterNewFolderName)
-// }
+	err = p.storage.RemoveFolder(ctx, folderID)
+	if err != nil {
+		return errhandling.Wrap("can't delete folder", err)
+	}
 
-// func (p *Processor) chooseLinkForDeletion(ctx context.Context, meta *CallbackMeta) error {
+	return p.tg.SendMessage(event.ChatID, msgFolderDeleted)
+}
 
-// 	folder := p.sessions[meta.UserID].folder
-// 	urls, err := p.storage.GetNames(ctx, meta.UserID, folder)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't show folder", err)
-// 	}
+func (p *Processor) chooseFolderForRenaming(chatID int) error {
+	return p.tg.SendMessage(chatID, msgEnterNewFolderName)
+}
 
-// 	if len(urls) == 0 {
-// 		p.tg.SendMessage(meta.ChatID, msgEmptyFolder)
-// 		return ErrEmptyFolder
-// 	}
+func (p *Processor) chooseLinkForDeletion(ctx context.Context, event *events.Event) error {
 
-// 	return p.tg.SendCallbackMessage(meta.ChatID, msgChooseLink, urls)
-// }
+	folderName := p.sessions[event.UserID].folderName
+	folderID, err := p.storage.FolderID(ctx, event.UserID, folderName)
+	if err != nil {
+		return err
+	}
 
-// func (p *Processor) deleteLink(ctx context.Context, meta *CallbackMeta) error {
+	access, err := p.storage.GetAccessLvl(ctx, event.UserID, folderID)
+	if err != nil {
+		return err
+	}
+	if access != storage.Owner && access != storage.Editor {
+		p.sessions[event.UserID].status = statusOK
+		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
+	}
 
-// 	session := p.sessions[meta.UserID]
-// 	// Т.к. поле name является уникальным в отдельной папке, то удаление происходит по нему
-// 	// и URL в следующей строке не имеет значения.
-// 	page := p.storage.NewPage("", session.name, meta.UserID, session.folder)
+	urls, err := p.storage.GetTags(ctx, folderID)
+	if err != nil {
+		return errhandling.Wrap("can't show folder", err)
+	}
 
-// 	err := p.storage.Remove(ctx, page)
-// 	if err != nil {
-// 		return err
-// 	}
+	if len(urls) == 0 {
+		p.tg.SendMessage(event.ChatID, msgEmptyFolder)
+		return ErrEmptyFolder
+	}
 
-// 	return p.tg.SendMessage(meta.ChatID, msgPageDeleted)
-// }
+	return p.tg.SendCallbackMessage(event.ChatID, msgChooseLink, urls, urls)
+}
+
+func (p *Processor) deleteLink(ctx context.Context, event *events.Event) error {
+
+	folderID, err := p.storage.FolderID(ctx, event.UserID, p.sessions[event.UserID].folderName)
+	if err != nil {
+		return err
+	}
+
+	session := p.sessions[event.UserID]
+	// Т.к. поле name является уникальным в отдельной папке, то удаление происходит по нему
+	// и URL в следующей строке не имеет значения.
+	page := p.storage.NewPage("", session.tag, folderID)
+	if page == nil {
+		return errors.New("can't delete link: can't create folder")
+	}
+
+	err = p.storage.RemovePage(ctx, page)
+	if err != nil {
+		return err
+	}
+
+	return p.tg.SendMessage(event.ChatID, msgPageDeleted)
+}
