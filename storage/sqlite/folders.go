@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
@@ -28,16 +29,33 @@ func (s *Storage) NewFolder(folderName string, lvl storage.AccessLevel, userID i
 }
 
 // IsFolderExists() checks if folder exists in the storage
-func (s *Storage) IsFolderExist(ctx context.Context, userID int, folderID string) (bool, error) {
-	q := `SELECT COUNT(*) FROM folders WHERE user_id = ? AND folder_id = ?`
+func (s *Storage) IsFolderExist(ctx context.Context, folderID string) (bool, error) {
+	q := `SELECT COUNT(*) FROM folders WHERE folder_id = ?`
 
 	var count int
 
-	if err := s.db.QueryRowContext(ctx, q, userID, folderID).Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, folderID).Scan(&count); err != nil {
 		return false, errhandling.Wrap("can't check if page exists", err)
 	}
 
 	return count > 0, nil
+}
+
+// FolderID()
+func (s *Storage) FolderID(ctx context.Context, userID int, folderName string) (string, error) {
+	q := `SELECT folder_id FROM folders WHERE user_id = ? AND folder_name = ?`
+
+	var folderID string
+
+	err := s.db.QueryRowContext(ctx, q, userID, folderName).Scan(&folderID)
+	if err == sql.ErrNoRows {
+		return "", storage.ErrNoFolders
+	}
+	if err != nil {
+		return "", errhandling.Wrap("can't check if folder exists", err)
+	}
+
+	return folderID, nil
 }
 
 // GetAccessLvl returns the user's access level to the specified folder

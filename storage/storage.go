@@ -16,7 +16,7 @@ type Storage interface {
 	// Folders
 	NewFolder(folderName string, lvl AccessLevel, userID int, username string) *Folder
 	IsFolderExist(ctx context.Context, folderID string) (bool, error)
-	// FolderID(ctx context.Context, userID int, folderName string) (string, error)
+	FolderID(ctx context.Context, userID int, folderName string) (string, error)
 	GetAccessLvl(ctx context.Context, userID int, folderID string) (AccessLevel, error)
 	AddFolder(ctx context.Context, folder *Folder) error
 	RemoveFolder(ctx context.Context, folderID string) error
@@ -41,6 +41,7 @@ type Storage interface {
 	// Premium()
 }
 
+var ErrNoFolders = errors.New("No folders")
 var ErrNoSavedPages = errors.New("No saved pages")
 var ErrIvalidAccessLvl = errors.New("Invalid access level")
 
