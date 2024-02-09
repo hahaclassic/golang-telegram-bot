@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
@@ -28,7 +29,11 @@ func (s *Storage) GetPassword(ctx context.Context, folderID string, accessLvl st
 
 	q := `SELECT password FROM passwords WHERE folder_id = ? AND access_level = ?`
 
-	if err := s.db.QueryRowContext(ctx, q, folderID, accessLvl).Scan(&password); err != nil {
+	err := s.db.QueryRowContext(ctx, q, folderID, accessLvl).Scan(&password)
+	if err == sql.ErrNoRows {
+		return "", storage.ErrNoPasswords
+	}
+	if err != nil {
 		return "", errhandling.Wrap("cant get password", err)
 	}
 

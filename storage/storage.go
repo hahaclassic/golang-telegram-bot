@@ -41,9 +41,12 @@ type Storage interface {
 	// Premium()
 }
 
-var ErrNoFolders = errors.New("No folders")
-var ErrNoSavedPages = errors.New("No saved pages")
-var ErrIvalidAccessLvl = errors.New("Invalid access level")
+var (
+	ErrNoFolders       = errors.New("No folders")
+	ErrNoSavedPages    = errors.New("No saved pages")
+	ErrIvalidAccessLvl = errors.New("Invalid access level")
+	ErrNoPasswords     = errors.New("No passwords")
+)
 
 type Page struct {
 	URL      string
@@ -70,3 +73,7 @@ const (
 	Banned
 	Undefined
 )
+
+func (lvl AccessLevel) String() string {
+	return []string{"Owner", "Editor", "Confirmed reader", "reader", "Banned", "Undefined"}[lvl]
+}

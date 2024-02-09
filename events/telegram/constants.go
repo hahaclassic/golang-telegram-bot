@@ -108,11 +108,10 @@ const (
 )
 
 const (
-	HelpCmd    = "/help"
-	RusHelpCmd = "/help_rus"
-	StartCmd   = "/start"
-	CancelCmd  = "/cancel"
-
+	HelpCmd     = "/help"
+	RusHelpCmd  = "/help_rus"
+	StartCmd    = "/start"
+	CancelCmd   = "/cancel"
 	FeedbackCmd = "/feedback"
 
 	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
@@ -125,6 +124,8 @@ const (
 	CreateFolderCmd            = "/create"        // Создает новую папку
 	DeleteFolderCmd            = "/delete_folder" // Удаляет папку
 	ChooseFolderForRenamingCmd = "/rename"        // Изменяет название папки
+
+	KeyCmd = "/key"
 )
 
 // Internal commands
@@ -133,4 +134,6 @@ const (
 	DeleteLinkCmd   = "/delete_link"
 	RenameFolderCmd = "/rename_folder"
 	GetNameCmd      = "/get_name"
+	DeleteKeyCmd    = "/delete_key"
+	CreateKeyCmd    = "/create_key"
 )

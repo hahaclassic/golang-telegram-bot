@@ -68,6 +68,8 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
 	case ChooseLinkForDeletionCmd:
 		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
+	case KeyCmd:
+		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
 	case FeedbackCmd:
 		err = p.tg.SendMessage(event.ChatID, msgEnterFeedback)
 	// case ChangeTagCmd:
@@ -163,11 +165,12 @@ func (p *Processor) createFolder(ctx context.Context, event *events.Event) (err 
 
 	var folder *storage.Folder
 
-	i := 0
-	for ; i < maxAttemts; i++ {
+	var ok bool
+	var i int
+	for i = 0; i < maxAttemts && err == nil && !ok; i++ {
 		folder = p.storage.NewFolder(event.Text, storage.Owner, event.UserID, event.Username)
 
-		ok, err := p.storage.IsFolderExist(ctx, folder.ID)
+		ok, err = p.storage.IsFolderExist(ctx, folder.ID)
 		if err == nil && !ok {
 			break
 		}

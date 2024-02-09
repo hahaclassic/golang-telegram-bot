@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/events"
@@ -41,6 +42,9 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 		p.sessions[event.UserID].currentOperation = SaveLinkCmd
 		p.sessions[event.UserID].tag = p.sessions[event.UserID].url
 		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
+
+	case KeyCmd:
+		return p.ShowKeys(context.Background(), event.ChatID, event.UserID)
 
 	case SaveLinkCmd:
 		p.sessions[event.UserID].status = statusOK
@@ -203,4 +207,45 @@ func (p *Processor) deleteLink(ctx context.Context, event *events.Event) error {
 	}
 
 	return p.tg.SendMessage(event.ChatID, msgPageDeleted)
+}
+
+func (p *Processor) ShowKeys(ctx context.Context, ChatID int, UserID int) error {
+
+	folderName := p.sessions[UserID].folderName
+	folderID, err := p.storage.FolderID(ctx, UserID, folderName)
+	if err != nil {
+		return err
+	}
+
+	access, err := p.storage.GetAccessLvl(ctx, UserID, folderID)
+	if err != nil {
+		return err
+	}
+	if access != storage.Owner {
+		p.sessions[UserID].status = statusOK
+		return p.tg.SendMessage(ChatID, msgIncorrectAccessLvl)
+	}
+
+	keys := []string{}
+	names := []string{}
+	for lvl := storage.Editor; lvl < storage.Reader; lvl++ {
+		key, err := p.storage.GetPassword(ctx, folderID, lvl)
+		if err == storage.ErrNoPasswords {
+			break
+		} else if err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		names = append(names, fmt.Sprintf("%s", lvl))
+	}
+
+	var message string
+	if len(keys) == 0 {
+		message = "No passwords"
+	} else {
+		message = conc.EnumeratedJoinWithTags(keys, names)
+	}
+	buttons := []string{"Create key", "Delete key"}
+	operations := []string{CreateKeyCmd, DeleteKeyCmd}
+	return p.tg.SendCallbackMessage(ChatID, message, buttons, operations)
 }
