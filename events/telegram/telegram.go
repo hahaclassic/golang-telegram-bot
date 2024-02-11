@@ -20,12 +20,13 @@ type Processor struct {
 	sessions    map[int]*Session
 }
 
-// При статусе ОК сессия будет удалятся из карты. (Возможно, будет удаляется через некоторое время)
+// Убрать status (совместить с currOperation)
 type Session struct {
 	currentOperation string
 	url              string
 	tag              string
-	folderName       string
+	folderID         string
+	lastMessageID    int
 	status           bool
 }
 

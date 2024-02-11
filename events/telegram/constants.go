@@ -98,6 +98,9 @@ const (
 	msgOperationCancelled = "Operation cancelled 🤓"
 	msgThanksForFeedback  = "Thank you for your help in improving our service! 🥺"
 
+	// Commands
+	msgBack = "Back ⬅"
+
 	// Input Suggestion
 	msgChooseFolder       = "Choose folder"
 	msgChooseLink         = "Choose link for deletion"
@@ -105,6 +108,11 @@ const (
 	msgEnterNewFolderName = "Enter new folder name"
 	msgEnterUrlName       = "Enter short description (tag) for link"
 	msgEnterFeedback      = "Write your feedback, ideas or suggestions. Don't worry, it's anonymous 💫"
+)
+
+// Special
+const (
+	PublicFolderSpecSymb = "👥️"
 )
 
 const (
@@ -136,4 +144,6 @@ const (
 	GetNameCmd      = "/get_name"
 	DeleteKeyCmd    = "/delete_key"
 	CreateKeyCmd    = "/create_key"
+	GetAccessCmd    = "/access"
+	GoBackCmd       = "/back"
 )

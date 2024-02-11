@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
@@ -16,7 +17,7 @@ func (s *Storage) NewFolder(folderName string, lvl storage.AccessLevel, userID i
 	if err != nil {
 		return nil
 	}
-	folderID := id.String()
+	folderID := strings.ToUpper(id.String())
 	folderID = folderID[len(folderID)-12:]
 
 	return &storage.Folder{
@@ -57,18 +58,45 @@ func (s *Storage) FolderID(ctx context.Context, userID int, folderName string) (
 	return folderID, nil
 }
 
+// FolderID()
+func (s *Storage) FolderName(ctx context.Context, folderID string) (folderName string, err error) {
+
+	q := `SELECT folder_name FROM folders WHERE folder_id = ?`
+
+	err = s.db.QueryRowContext(ctx, q, folderID).Scan(&folderName)
+	if err == sql.ErrNoRows {
+		return "", storage.ErrNoFolders
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return folderName, nil
+}
+
 // GetAccessLvl returns the user's access level to the specified folder
-func (s *Storage) GetAccessLvl(ctx context.Context, userID int, folderID string) (storage.AccessLevel, error) {
+func (s *Storage) AccessLevelByUserID(ctx context.Context, folderID string, userID int) (storage.AccessLevel, error) {
 
 	var accessLvl storage.AccessLevel
 
-	q := `SELECT access_level FROM folders WHERE user_id = ? AND folder_id = ?`
+	q := `SELECT access_level FROM folders WHERE folder_id = ? AND user_id = ?`
 
-	if err := s.db.QueryRowContext(ctx, q, userID, folderID).Scan(&accessLvl); err != nil {
+	if err := s.db.QueryRowContext(ctx, q, folderID, userID).Scan(&accessLvl); err != nil {
 		return storage.Undefined, errhandling.Wrap("cant get access_level", err)
 	}
 
 	return accessLvl, nil
+}
+
+func (s *Storage) Owner(ctx context.Context, folderID string) (userID int, err error) {
+
+	q := `SELECT user_id FROM folders WHERE folder_id = ? AND access_level = ?`
+
+	if err := s.db.QueryRowContext(ctx, q, folderID, storage.Owner).Scan(&userID); err != nil {
+		return 0, errhandling.Wrap("cant get folder's owner", err)
+	}
+
+	return userID, nil
 }
 
 // AddFolder() adds a record that the user has access to the folder
@@ -114,8 +142,11 @@ func (s *Storage) DeleteAccess(ctx context.Context, userID int, folderID string)
 	q := `DELETE FROM folders WHERE folder_id = ? AND user_id = ?`
 
 	_, err := s.db.ExecContext(ctx, q, folderID, userID)
+	if err == sql.ErrNoRows {
+		return storage.ErrNoFolders
+	}
 
-	return errhandling.WrapIfErr("can't remove folder from table 'folders'", err)
+	return nil
 }
 
 // RenameFolder() changes the folder name to a new one
@@ -127,56 +158,72 @@ func (s *Storage) RenameFolder(ctx context.Context, folderID string, folderName 
 	return errhandling.WrapIfErr("can't rename folder", err)
 }
 
-// GetFolders() returns folders' names and IDs in the [][]string where
-// index 0 - folderID
-// index 1 - folderName
-func (s *Storage) GetFolders(ctx context.Context, userID int) (folders [][]string, err error) {
+// Folders() returns folders' names and IDs in the [][]string where
+// folders[0] - folderID
+// folders[1] - folderName
+func (s *Storage) Folders(ctx context.Context, userID int) (folders [][]string, err error) {
 	defer func() { err = errhandling.WrapIfErr("can't get folders", err) }()
 
-	q := `SELECT folder_id FROM folders WHERE user_id = ?`
-
-	rows, err := s.db.QueryContext(ctx, q, userID)
+	foldersIDs, err := s.FoldersIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	foldersNames, err := s.FoldersNames(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	folders = make([][]string, 2)
+	folders = append(folders, foldersIDs)
+	folders = append(folders, foldersNames)
+	return folders, nil
+}
 
-	var temp string
-	for rows.Next() {
-		if err := rows.Scan(&temp); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		folders[0] = append(folders[0], temp)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
+func (s *Storage) FoldersIDs(ctx context.Context, userID int) (ids []string, err error) {
+	q := `SELECT folder_id FROM folders WHERE user_id = ? AND access_level <= ?`
 
-	rows.Close()
-
-	q = `SELECT folder_name FROM folders WHERE user_id = ?`
-
-	rows, err = s.db.QueryContext(ctx, q, userID)
+	rows, err := s.db.QueryContext(ctx, q, userID, storage.Reader)
 	if err != nil {
 		return nil, err
 	}
 
 	defer rows.Close()
 
+	var temp string
 	for rows.Next() {
 		if err := rows.Scan(&temp); err != nil {
 			return nil, err
 		}
-		folders[1] = append(folders[1], temp)
+		ids = append(ids, temp)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return folders, nil
+	return ids, nil
+}
+
+func (s *Storage) FoldersNames(ctx context.Context, userID int) (names []string, err error) {
+	q := `SELECT folder_name FROM folders WHERE user_id = ? AND access_level <= ?`
+
+	rows, err := s.db.QueryContext(ctx, q, userID, storage.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	var temp string
+
+	for rows.Next() {
+		if err := rows.Scan(&temp); err != nil {
+			return nil, err
+		}
+		names = append(names, temp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return names, nil
 }
 
 // GetLinks() returns list of URL links in folder

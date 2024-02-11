@@ -82,35 +82,16 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	return nil
 }
 
-// func (c *Client) DeleteMessage(chatID int, messageID int) error {
-// 	data := StandardMessage{
-// 		ChatID:    chatID,
-// 		MessageID: messageID,
-// 	}
-
-// 	// Get json
-// 	EncodedData, err := json.Marshal(data)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't get json", err)
-// 	}
-
-// 	_, err = c.doPostRequest(deleteMessageMethod, EncodedData)
-// 	if err != nil {
-// 		return errhandling.Wrap("can't send a message", err)
-// 	}
-
-// 	return nil
-// }
-
-func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []string, callbackData []string) error {
+// SendCallbackMessage() returns messageID of the sent message and error
+func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []string, callbackData []string) (messageID int, err error) {
 	buttons := [][]InlineKeyboardButton{}
 
 	if buttonsText == nil || len(buttonsText) == 0 ||
 		callbackData == nil || len(callbackData) == 0 {
-		return NoDataErr
+		return 0, NoDataErr
 	}
 	if len(buttonsText) != len(callbackData) {
-		return WrongDataErr
+		return 0, WrongDataErr
 	}
 
 	for i := 0; i < len(buttonsText); i++ {
@@ -130,21 +111,37 @@ func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []stri
 	data := ReplyMessage{
 		ChatID:      chatID,
 		Text:        text,
+		ParseMode:   "HTML",
 		ReplyMarkup: replyMarkup,
 	}
 
 	// Get json
 	EncodedData, err := json.Marshal(data)
 	if err != nil {
-		return errhandling.Wrap("can't get json", err)
+		return 0, errhandling.Wrap("can't get json", err)
 	}
 
-	_, err = c.doPostRequest(sendMessageMethod, EncodedData)
+	bodyData, err := c.doPostRequest(sendMessageMethod, EncodedData)
 	if err != nil {
-		return errhandling.Wrap("can't send a callback message", err)
+		return 0, errhandling.Wrap("can't send a callback message", err)
 	}
 
-	return nil
+	var res PostRequestResponse
+	if err := json.Unmarshal(bodyData, &res); err != nil {
+		return 0, errhandling.Wrap("can't unmarshal json", err)
+	}
+
+	return res.Result.MessageID, nil
+}
+
+func (c *Client) DeleteMessage(chatID int, messageID int) error {
+	q := url.Values{}
+	q.Add("chat_id", strconv.Itoa(chatID))
+	q.Add("message_id", strconv.Itoa(messageID))
+
+	_, err := c.doGetRequest(deleteMessageMethod, q)
+
+	return err
 }
 
 func (c *Client) AnswerCallbackQuery(CallbackQueryID string) error {
@@ -152,11 +149,8 @@ func (c *Client) AnswerCallbackQuery(CallbackQueryID string) error {
 	q.Add("callback_query_id", CallbackQueryID)
 
 	_, err := c.doGetRequest(AnswerCallbackQueryMethod, q)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 // doPostRequest() sends a post request to the server. Accepts data in json format
@@ -180,7 +174,6 @@ func (c *Client) doPostRequest(method string, jsonData []byte) (data []byte, err
 
 	// sending a request to the telegram api
 	resp, err := c.client.Do(req)
-	log.Println(resp.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -191,19 +184,6 @@ func (c *Client) doPostRequest(method string, jsonData []byte) (data []byte, err
 	if err != nil {
 		return nil, err
 	}
-
-	// r := UpdatesResponse{}
-
-	// err = json.Unmarshal(body, &r)
-	// log.Println(r)
-
-	// message := StandardMessage{}
-	// err = json.Unmarshal(body, &message)
-	// if err != nil {
-	// 	log.Println(err)
-	// } else {
-	// 	log.Println(message)
-	// }
 
 	return body, nil
 }

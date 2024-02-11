@@ -5,6 +5,17 @@ type UpdatesResponse struct {
 	Result []Update `json:"result"`
 }
 
+type PostRequestResponse struct {
+	Ok     bool            `json:"ok"`
+	Result returnedMessage `json:"result"`
+}
+
+// В запросе возвращаются поля 'message_id', 'from', 'chat', 'date', 'text' и т.д.,
+// Но для нас необходим только message_id
+type returnedMessage struct {
+	MessageID int `json:"message_id"`
+}
+
 type Update struct {
 	ID            int              `json:"update_id"`
 	Message       *IncomingMessage `json:"message"`
@@ -34,16 +45,16 @@ type Chat struct {
 }
 
 type ReplyMessage struct {
-	//MessageID   int                  `json:"message_id"`
 	ChatID      int                  `json:"chat_id"`
 	Text        string               `json:"text"`
+	ParseMode   string               `json:"parse_mode"`
 	ReplyMarkup InlineKeyboardMarkup `json:"reply_markup,omitempty"`
 }
 
 type StandardMessage struct {
 	ChatID int    `json:"chat_id"`
 	Text   string `json:"text"`
-	//MessageID int    `json:"message_id"`
+	//ParseMode string `json:"parse_mode"`
 }
 
 type InlineKeyboardMarkup struct {

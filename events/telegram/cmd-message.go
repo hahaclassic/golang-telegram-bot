@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"strings"
@@ -39,7 +40,12 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 		p.sessions[event.UserID].currentOperation = GetNameCmd
 		p.sessions[event.UserID].status = statusProcessing
 		button := []string{"without a tag"}
-		return p.tg.SendCallbackMessage(event.ChatID, msgEnterUrlName, button, button)
+		_, err = p.tg.SendCallbackMessage(event.ChatID, msgEnterUrlName, button, button)
+		return err
+	}
+	if isGetAccessCmd(event.Text) {
+		p.sessions[event.UserID].status = statusOK
+		return p.checkKey(context.Background(), event)
 	}
 
 	// Обработка однотактовых операций.
@@ -72,8 +78,6 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 		err = p.chooseFolder(context.Background(), event.ChatID, event.UserID)
 	case FeedbackCmd:
 		err = p.tg.SendMessage(event.ChatID, msgEnterFeedback)
-	// case ChangeTagCmd:
-	// 	err = p.chooseFolder(context.Background(), chatID, userID)
 	default:
 		p.sessions[event.UserID].status = statusOK
 		err = p.tg.SendMessage(event.ChatID, msgUnknownCommand)
@@ -165,12 +169,11 @@ func (p *Processor) createFolder(ctx context.Context, event *events.Event) (err 
 
 	var folder *storage.Folder
 
-	var ok bool
 	var i int
-	for i = 0; i < maxAttemts && err == nil && !ok; i++ {
+	for i = 0; i < maxAttemts; i++ {
 		folder = p.storage.NewFolder(event.Text, storage.Owner, event.UserID, event.Username)
 
-		ok, err = p.storage.IsFolderExist(ctx, folder.ID)
+		ok, err := p.storage.IsFolderExist(ctx, folder.ID)
 		if err == nil && !ok {
 			break
 		}
@@ -193,7 +196,7 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 		err = errhandling.WrapIfErr("can't do command: chooseFolder()", err)
 	}()
 
-	folders, err := p.storage.GetFolders(ctx, userID)
+	folders, err := p.storage.Folders(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -202,7 +205,12 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 		return p.tg.SendMessage(chatID, msgNoFolders)
 	}
 
-	return p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders[1], folders[1])
+	messageID, err := p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders[1], folders[0])
+	if err == nil {
+		p.sessions[userID].lastMessageID = messageID
+	}
+
+	return err
 }
 
 // event.Text == newFolderName
@@ -210,12 +218,7 @@ func (p *Processor) renameFolder(ctx context.Context, event *events.Event) (err 
 
 	defer func() { err = errhandling.WrapIfErr("can't rename folder", err) }()
 
-	folderID, err := p.storage.FolderID(ctx, event.UserID, p.sessions[event.UserID].folderName)
-	if err != nil {
-		return err
-	}
-
-	access, err := p.storage.GetAccessLvl(ctx, event.UserID, folderID)
+	access, err := p.storage.AccessLevelByUserID(ctx, p.sessions[event.UserID].folderID, event.UserID)
 	if err != nil {
 		return err
 	}
@@ -232,12 +235,64 @@ func (p *Processor) renameFolder(ctx context.Context, event *events.Event) (err 
 		return err
 	}
 
-	err = p.storage.RenameFolder(ctx, folderID, event.Text)
+	err = p.storage.RenameFolder(ctx, p.sessions[event.UserID].folderID, event.Text)
 	if err != nil {
-		return errhandling.Wrap("can't rename folder", err)
+		return err
 	}
 
 	return p.tg.SendMessage(event.ChatID, msgFolderRenamed)
+}
+
+func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err error) {
+
+	defer func() { err = errhandling.WrapIfErr("can't check key", err) }()
+
+	key := event.Text // KEY|FOLDER_ID|PASSWORD
+	folderID := key[3:15]
+	password := key[15:]
+
+	access, err := p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
+	if err == nil {
+		switch access {
+		case storage.Owner:
+			return p.tg.SendMessage(event.ChatID, "Вы являетесь владельцем этой папки.")
+		case storage.Banned:
+			return p.tg.SendMessage(event.ChatID, "Доступ к этой папке заблокирован.")
+		}
+	}
+
+	folderName, err := p.storage.FolderName(ctx, folderID)
+	if err != nil && err != storage.ErrNoFolders {
+		return err
+	}
+
+	newAccessLevel, err := p.storage.AccessLevelByPassword(ctx, folderID, password)
+	if err != nil {
+		return err
+	}
+	if newAccessLevel == storage.Reader {
+		return p.storage.AddFolder(ctx, &storage.Folder{
+			ID:        folderID,
+			Name:      folderName + PublicFolderSpecSymb,
+			AccessLvl: storage.Reader,
+			UserID:    event.UserID,
+			Username:  event.Username,
+		})
+	}
+
+	owner, err := p.storage.Owner(ctx, folderID)
+	access, err = p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
+
+	message := fmt.Sprintf("Предоставить ли доступ пользователю '%s' к папке '%s'?", event.Username, folderName)
+	var callbackDataForYes, callbackDataForNo string
+	callbackDataForYes = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, newAccessLevel)
+	if err == nil && access == storage.Suspected {
+		callbackDataForNo = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, storage.Banned)
+	} else {
+		callbackDataForNo = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, storage.Suspected)
+	}
+	p.tg.SendCallbackMessage(owner, message, []string{"Yes", "No"}, []string{callbackDataForYes, callbackDataForNo}) // userID соответствует chatID
+	return err
 }
 
 func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
@@ -275,4 +330,12 @@ func isURL(text string) bool {
 	u, err := url.Parse(text)
 
 	return err == nil && u.Host != ""
+}
+
+func isGetAccessCmd(text string) bool {
+	return isKey(text)
+}
+
+func isKey(text string) bool {
+	return len(text) > 3 && text[:3] == "KEY"
 }
