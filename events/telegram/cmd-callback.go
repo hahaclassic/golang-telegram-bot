@@ -229,14 +229,11 @@ func (p *Processor) deleteFolder(ctx context.Context, ChatID int, UserID int) er
 	if err != nil {
 		return err
 	}
-	if access != storage.Owner {
-		p.sessions[UserID].status = statusOK
-		return p.tg.SendMessage(ChatID, msgIncorrectAccessLvl)
-	}
 
-	err = p.storage.RemoveFolder(ctx, p.sessions[UserID].folderID)
-	if err != nil {
-		return errhandling.Wrap("can't delete folder", err)
+	if access == storage.Owner {
+		err = p.storage.RemoveFolder(ctx, p.sessions[UserID].folderID)
+	} else {
+		err = p.storage.DeleteAccess(ctx, UserID, p.sessions[UserID].folderID)
 	}
 
 	return p.tg.SendMessage(ChatID, msgFolderDeleted)
