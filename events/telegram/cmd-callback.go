@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
+	"log"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/events"
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
@@ -38,7 +37,8 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 
 	if meta.Data == CreateKeyCmd || meta.Data == DeleteKeyCmd {
 		p.sessions[event.UserID].currentOperation = meta.Data
-	} else if meta.Data == "1" || meta.Data == "2" || meta.Data == "3" {
+	} else if storage.ToAccessLvl(meta.Data) != storage.Undefined {
+		log.Println("YES")
 		p.sessions[event.UserID].status = statusOK
 		if p.sessions[event.UserID].currentOperation == CreateKeyCmd {
 			return p.createKey(context.Background(), event.ChatID, event.UserID, storage.ToAccessLvl(meta.Data))
@@ -95,57 +95,53 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 	return nil
 }
 
-func (p *Processor) setAccess(ctx context.Context, ownerChatID int, query string, message string) (err error) {
+func (p *Processor) setAccess(ctx context.Context, ownerChatID int, callbackData string, message string) (err error) {
 
 	defer func() { errhandling.WrapIfErr("can't set access", err) }()
 
-	param1 := strings.Split(query, " ")
-	folderID := param1[1]
-	userID, err := strconv.Atoi(param1[2])
+	accessData, err := decodeAccessData(callbackData, message)
 	if err != nil {
 		return err
 	}
-	var access storage.AccessLevel
 
-	for lvl := storage.Editor; lvl <= storage.Banned; lvl++ {
-		if fmt.Sprint(lvl) == param1[3] {
-			access = lvl
-			break
-		}
-	}
-
-	param2 := strings.Split(message, "'")
-	username := param2[1]
-	folderName := param2[3]
-
-	err = p.storage.DeleteAccess(ctx, userID, folderID)
+	err = p.storage.DeleteAccess(ctx, accessData.UserID, accessData.FolderID)
 	if err != nil && err != storage.ErrNoRows {
 		return err
 	}
 
+	// AddFolder будет иметь другие параметры после реструктуризации бд и разделении таблиц
 	err = p.storage.AddFolder(ctx, &storage.Folder{
-		ID:        folderID,
-		Name:      folderName + PublicFolderSpecSymb,
-		AccessLvl: access,
-		UserID:    userID,
-		Username:  username,
+		ID:        accessData.FolderID,
+		Name:      accessData.FolderName + PublicFolderSpecSymb,
+		AccessLvl: accessData.AccessLevel,
+		UserID:    accessData.UserID,
+		Username:  accessData.Username,
 	})
 	if err != nil {
 		return err
 	}
 
-	switch access {
+	return p.SendResultOfGaingAccess(ownerChatID, accessData)
+}
+
+// переименовать получше
+// Добавить обработку ошибок
+func (p *Processor) SendResultOfGaingAccess(ownerChatID int, accessData *AccessData) (err error) {
+	switch accessData.AccessLevel {
 	case storage.Suspected:
 		_ = p.tg.SendMessage(ownerChatID, `При следующем отказе пользователь
 		 будет заблокирован, и вы больше не будете получать от него уведомления насчет этой папки.`)
-		_ = p.tg.SendMessage(userID, `Вам отказано в доступе.`)
+		_ = p.tg.SendMessage(accessData.UserID, `Вам отказано в доступе.`)
 	case storage.Banned:
 		_ = p.tg.SendMessage(ownerChatID, `Пользователь заблокирован.`)
-		_ = p.tg.SendMessage(userID, `Вам отказано в доступе.`)
+		_ = p.tg.SendMessage(accessData.UserID, `Вам отказано в доступе.`)
 	default:
-		_ = p.tg.SendMessage(ownerChatID, fmt.Sprintf("Пользователь '%s' получил доступ к папке '%s'.", username, folderName))
-		_ = p.tg.SendMessage(userID, fmt.Sprintf("Вы получили доступ к папке '%s'.", folderName))
+		_ = p.tg.SendMessage(ownerChatID, fmt.Sprintf("Пользователь '%s' получил доступ к папке '%s'.",
+			accessData.Username, accessData.FolderName))
+		_ = p.tg.SendMessage(accessData.UserID, fmt.Sprintf("Вы получили доступ к папке '%s'.",
+			accessData.FolderName))
 	}
+
 	return err
 }
 
@@ -300,7 +296,7 @@ func (p *Processor) showKeys(ctx context.Context, ChatID int, UserID int) error 
 
 	keys := []string{}
 	names := []string{}
-	for lvl := storage.Editor; lvl <= storage.Reader; lvl++ {
+	for lvl := storage.Editor; lvl >= storage.Reader; lvl-- {
 		key, err := p.storage.GetPassword(ctx, folderID, lvl)
 		if err == storage.ErrNoPasswords {
 			continue
@@ -308,7 +304,7 @@ func (p *Processor) showKeys(ctx context.Context, ChatID int, UserID int) error 
 			return err
 		}
 		keys = append(keys, "<code>"+key+"</code>")
-		names = append(names, fmt.Sprintf("%s", lvl))
+		names = append(names, fmt.Sprint(lvl))
 	}
 
 	var message string
@@ -331,9 +327,9 @@ func (p *Processor) chooseAccessLvl(ChatID int, UserID int) error {
 
 	names := []string{}
 	data := []string{}
-	for lvl := storage.Editor; lvl <= storage.Reader; lvl++ {
-		names = append(names, fmt.Sprintf("%s", lvl))
-		data = append(data, strconv.Itoa(int(lvl)))
+	for lvl := storage.Editor; lvl >= storage.Reader; lvl-- {
+		names = append(names, fmt.Sprint(lvl))
+		data = append(data, fmt.Sprint(lvl))
 		fmt.Println(names)
 	}
 	names = append(names, msgBack)

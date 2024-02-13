@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/url"
 	"strings"
@@ -253,10 +252,10 @@ func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err erro
 
 	access, err := p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
 	if err == nil {
-		switch access {
-		case storage.Owner:
+		if access == storage.Owner {
 			return p.tg.SendMessage(event.ChatID, "Вы являетесь владельцем этой папки.")
-		case storage.Banned:
+		}
+		if access == storage.Banned {
 			return p.tg.SendMessage(event.ChatID, "Доступ к этой папке заблокирован.")
 		}
 	}
@@ -271,26 +270,41 @@ func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err erro
 		return err
 	}
 	if newAccessLevel == storage.Reader {
-		return p.storage.AddFolder(ctx, &storage.Folder{
+		err = p.storage.AddFolder(ctx, &storage.Folder{
 			ID:        folderID,
 			Name:      folderName + PublicFolderSpecSymb,
 			AccessLvl: storage.Reader,
 			UserID:    event.UserID,
 			Username:  event.Username,
 		})
+		if err != nil {
+			return err
+		}
+		return p.tg.SendMessage(event.ChatID, "Папка добавлена успешно.")
+	}
+
+	accessData := &AccessData{
+		FolderID:   folderID,
+		FolderName: folderName,
+		Username:   event.Username,
+		UserID:     event.UserID,
 	}
 
 	owner, err := p.storage.Owner(ctx, folderID)
-	access, err = p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
-
-	message := fmt.Sprintf("Предоставить ли доступ пользователю '%s' к папке '%s'?", event.Username, folderName)
-	var callbackDataForYes, callbackDataForNo string
-	callbackDataForYes = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, newAccessLevel)
-	if err == nil && access == storage.Suspected {
-		callbackDataForNo = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, storage.Banned)
-	} else {
-		callbackDataForNo = fmt.Sprintf("%s %s %d %s", GetAccessCmd, folderID, event.UserID, storage.Suspected)
+	if err != nil {
+		return err
 	}
+
+	message := accessData.CreateMessage()
+	callbackDataForYes := accessData.EncodeCallbackData()
+
+	if access == storage.Suspected {
+		accessData.AccessLevel = storage.Banned
+	} else {
+		accessData.AccessLevel = storage.Suspected
+	}
+	callbackDataForNo := accessData.EncodeCallbackData()
+
 	p.tg.SendCallbackMessage(owner, message, []string{"Yes", "No"}, []string{callbackDataForYes, callbackDataForNo}) // userID соответствует chatID
 	return err
 }

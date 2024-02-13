@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
-	"strconv"
+	"fmt"
 )
 
 type Storage interface {
@@ -71,25 +71,23 @@ type Folder struct {
 type AccessLevel int
 
 const (
-	Owner           AccessLevel = iota // Owner: All possible actions with the folder and its contents are available
-	Editor                             // Editor: add/delete links (always after confirmation)
-	ConfirmedReader                    // reading only after confirmation
-	Reader                             // reading only
-	Suspected                          // Last chance to gain access. In case of another refusal, the status will change to banned
-	// Those users who have been denied access are marked as blocked. It is necessary in order to protect the user from spam
+	Undefined AccessLevel = iota
 	Banned
-	Undefined
+	Suspected       // Last chance to gain access. In case of another refusal, the status will change to banned
+	Reader          // reading only
+	ConfirmedReader // reading only after confirmation
+	Editor          // Editor: add/delete links (always after confirmation)
+	Owner           // Owner: All possible actions with the folder and its contents are available
 )
 
 func (lvl AccessLevel) String() string {
-	return []string{"Owner", "Editor", "Confirmed reader", "Reader", "Banned", "Undefined"}[lvl]
+	return []string{"Undefined", "Banned", "Suspected", "Reader", "Confirmed reader", "Editor", "Owner"}[lvl]
 }
 
 func ToAccessLvl(s string) AccessLevel {
-	lvl, _ := strconv.Atoi(s)
-	for i := Owner; i < Undefined; i++ {
-		if int(i) == lvl {
-			return i
+	for lvl := Undefined; lvl <= Owner; lvl++ {
+		if s == fmt.Sprint(lvl) {
+			return lvl
 		}
 	}
 	return Undefined

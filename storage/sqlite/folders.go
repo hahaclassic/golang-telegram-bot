@@ -81,7 +81,12 @@ func (s *Storage) AccessLevelByUserID(ctx context.Context, folderID string, user
 
 	q := `SELECT access_level FROM folders WHERE folder_id = ? AND user_id = ?`
 
-	if err := s.db.QueryRowContext(ctx, q, folderID, userID).Scan(&accessLvl); err != nil {
+	err := s.db.QueryRowContext(ctx, q, folderID, userID).Scan(&accessLvl)
+
+	if err == sql.ErrNoRows {
+		return storage.Undefined, nil
+	}
+	if err != nil {
 		return storage.Undefined, errhandling.Wrap("cant get access_level", err)
 	}
 
@@ -179,7 +184,7 @@ func (s *Storage) Folders(ctx context.Context, userID int) (folders [][]string, 
 }
 
 func (s *Storage) FoldersIDs(ctx context.Context, userID int) (ids []string, err error) {
-	q := `SELECT folder_id FROM folders WHERE user_id = ? AND access_level <= ?`
+	q := `SELECT folder_id FROM folders WHERE user_id = ? AND access_level >= ?`
 
 	rows, err := s.db.QueryContext(ctx, q, userID, storage.Reader)
 	if err != nil {
@@ -203,7 +208,7 @@ func (s *Storage) FoldersIDs(ctx context.Context, userID int) (ids []string, err
 }
 
 func (s *Storage) FoldersNames(ctx context.Context, userID int) (names []string, err error) {
-	q := `SELECT folder_name FROM folders WHERE user_id = ? AND access_level <= ?`
+	q := `SELECT folder_name FROM folders WHERE user_id = ? AND access_level >= ?`
 
 	rows, err := s.db.QueryContext(ctx, q, userID, storage.Reader)
 	if err != nil {

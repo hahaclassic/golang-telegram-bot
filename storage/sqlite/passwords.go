@@ -68,7 +68,12 @@ func (s *Storage) AccessLevelByPassword(ctx context.Context, folderID string, pa
 
 	q := `SELECT access_level FROM passwords WHERE folder_id = ? AND password = ?`
 
-	if err := s.db.QueryRowContext(ctx, q, folderID, password).Scan(&accessLvl); err != nil {
+	err := s.db.QueryRowContext(ctx, q, folderID, password).Scan(&accessLvl)
+
+	if err == sql.ErrNoRows {
+		return storage.Undefined, nil
+	}
+	if err != nil {
 		return storage.Undefined, errhandling.Wrap("cant get access_level", err)
 	}
 
