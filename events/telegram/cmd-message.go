@@ -2,14 +2,11 @@ package telegram
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/url"
 	"strings"
 
 	"github.com/hahaclassic/golang-telegram-bot.git/events"
-	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 // text = text of the message
@@ -155,172 +152,6 @@ func (p *Processor) unknownCommandHelp(chatID int, userID int) error {
 	}
 
 	return p.tg.SendMessage(chatID, message)
-}
-
-// event.Text == folderName
-func (p *Processor) createFolder(ctx context.Context, event *events.Event) (err error) {
-	defer func() { err = errhandling.WrapIfErr("can't create folder", err) }()
-
-	_, err = p.storage.FolderID(ctx, event.UserID, event.Text)
-	if err == nil {
-		return p.tg.SendMessage(event.ChatID, msgFolderAlreadyExists)
-	}
-
-	var folder *storage.Folder
-
-	var i int
-	for i = 0; i < maxAttemts; i++ {
-		folder = p.storage.NewFolder(event.Text, storage.Owner, event.UserID, event.Username)
-
-		ok, err := p.storage.IsFolderExist(ctx, folder.ID)
-		if err == nil && !ok {
-			break
-		}
-	}
-	if i == 100 {
-		return errors.New("can't create unic folderID")
-	}
-
-	err = p.storage.AddFolder(ctx, folder)
-	if err != nil {
-		return err
-	}
-
-	return p.tg.SendMessage(event.ChatID, msgNewFolderCreated)
-}
-
-// Done
-func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (err error) {
-	defer func() {
-		err = errhandling.WrapIfErr("can't do command: chooseFolder()", err)
-	}()
-
-	folders, err := p.storage.Folders(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if len(folders[0]) == 0 {
-		p.sessions[userID].status = statusOK
-		return p.tg.SendMessage(chatID, msgNoFolders)
-	}
-
-	messageID, err := p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders[1], folders[0])
-	if err == nil {
-		p.sessions[userID].lastMessageID = messageID
-	}
-
-	return err
-}
-
-// event.Text == newFolderName
-func (p *Processor) renameFolder(ctx context.Context, event *events.Event) (err error) {
-
-	defer func() { err = errhandling.WrapIfErr("can't rename folder", err) }()
-
-	access, err := p.storage.AccessLevelByUserID(ctx, p.sessions[event.UserID].folderID, event.UserID)
-	if err != nil {
-		return err
-	}
-	if access != storage.Owner {
-		p.sessions[event.UserID].status = statusOK
-		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
-	}
-
-	_, err = p.storage.FolderID(ctx, event.UserID, event.Text)
-	if err == nil {
-		return p.tg.SendMessage(event.ChatID, msgCantRename)
-	}
-	if err != storage.ErrNoFolders {
-		return err
-	}
-
-	err = p.storage.RenameFolder(ctx, p.sessions[event.UserID].folderID, event.Text)
-	if err != nil {
-		return err
-	}
-
-	return p.tg.SendMessage(event.ChatID, msgFolderRenamed)
-}
-
-func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err error) {
-
-	defer func() { err = errhandling.WrapIfErr("can't check key", err) }()
-
-	key := event.Text // KEY|FOLDER_ID|PASSWORD
-	folderID := key[3:15]
-	password := key[15:]
-
-	access, err := p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
-	if err == nil {
-		if access == storage.Owner {
-			return p.tg.SendMessage(event.ChatID, "Вы являетесь владельцем этой папки.")
-		}
-		if access == storage.Banned {
-			return p.tg.SendMessage(event.ChatID, "Доступ к этой папке заблокирован.")
-		}
-	}
-
-	folderName, err := p.storage.FolderName(ctx, folderID)
-	if err != nil && err != storage.ErrNoFolders {
-		return err
-	}
-
-	newAccessLevel, err := p.storage.AccessLevelByPassword(ctx, folderID, password)
-	if err != nil {
-		return err
-	}
-	if newAccessLevel == storage.Reader {
-		err = p.storage.AddFolder(ctx, &storage.Folder{
-			ID:        folderID,
-			Name:      folderName + PublicFolderSpecSymb,
-			AccessLvl: storage.Reader,
-			UserID:    event.UserID,
-			Username:  event.Username,
-		})
-		if err != nil {
-			return err
-		}
-		return p.tg.SendMessage(event.ChatID, "Папка добавлена успешно.")
-	}
-
-	accessData := &AccessData{
-		FolderID:   folderID,
-		FolderName: folderName,
-		Username:   event.Username,
-		UserID:     event.UserID,
-	}
-
-	owner, err := p.storage.Owner(ctx, folderID)
-	if err != nil {
-		return err
-	}
-
-	message := accessData.CreateMessage()
-	callbackDataForYes := accessData.EncodeCallbackData()
-
-	if access == storage.Suspected {
-		accessData.AccessLevel = storage.Banned
-	} else {
-		accessData.AccessLevel = storage.Suspected
-	}
-	callbackDataForNo := accessData.EncodeCallbackData()
-
-	p.tg.SendCallbackMessage(owner, message, []string{"Yes", "No"}, []string{callbackDataForYes, callbackDataForNo}) // userID соответствует chatID
-	return err
-}
-
-func (p *Processor) sendRandom(ctx context.Context, chatID int, userID int) (err error) {
-	defer func() { err = errhandling.WrapIfErr("can't do command: can't send random", err) }()
-
-	page, err := p.storage.PickRandom(ctx, userID)
-	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
-		return err
-	}
-	if errors.Is(err, storage.ErrNoSavedPages) {
-		return p.tg.SendMessage(chatID, msgNoSavedPages)
-	}
-
-	return p.tg.SendMessage(chatID, page)
 }
 
 func (p *Processor) sendHelp(chatID int) error {
