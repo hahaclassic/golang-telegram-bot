@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
 )
 
 // text = text of the message
@@ -15,7 +15,7 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 	defer func() {
 		// В случае ошибки мы прерываем выполнение операции
 		if err != nil {
-			p.sessions[event.UserID].status = statusOK
+			p.sessions[event.UserID].currentOperation = DoneCmd
 		}
 		// Отсутствие папок не является ошибкой, которую необходимо логировать.
 		if err == ErrNoFolders {
@@ -26,40 +26,35 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 	event.Text = strings.TrimSpace(event.Text)
 	log.Printf("got new command '%s' from '%d'", event.Text, event.UserID)
 
-	if event.Text == CancelCmd {
-		return p.tg.SendMessage(event.ChatID, msgNoCurrentOperation)
-	}
+	switch {
+	case ToOperation(event.Text).IsInternal():
+		return p.tg.SendMessage(event.ChatID, msgUnknownCommand)
 
-	// Начало процесса добавление ссылки, если текст сообщения является ссылкой.
-	if isAddCmd(event.Text) {
+	case event.Text == CancelCmd.String():
+		return p.tg.SendMessage(event.ChatID, msgNoCurrentOperation)
+
+	case isAddCmd(event.Text):
 		p.sessions[event.UserID].url = event.Text
 		p.sessions[event.UserID].currentOperation = GetNameCmd
-		p.sessions[event.UserID].status = statusProcessing
-		button := []string{"without a tag"}
-		_, err = p.tg.SendCallbackMessage(event.ChatID, msgEnterUrlName, button, button)
-		return err
-	}
-	if isGetAccessCmd(event.Text) {
-		p.sessions[event.UserID].status = statusOK
+
+		return p.chooseTag(context.Background(), event.ChatID)
+
+	case isGetAccessCmd(event.Text):
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.checkKey(context.Background(), event)
 	}
 
-	// Обработка однотактовых операций.
-	switch event.Text {
-	case StartCmd:
-		return p.sendHello(event.ChatID)
-	case RusHelpCmd:
-		return p.sendRusHelp(event.ChatID)
-	case HelpCmd:
-		return p.sendHelp(event.ChatID)
-	case RndCmd:
-		return p.sendRandom(context.Background(), event.ChatID, event.UserID)
-	}
+	p.sessions[event.UserID].currentOperation = ToOperation(event.Text)
 
-	// Обработка сложных операций
-	p.sessions[event.UserID].currentOperation = event.Text
-	p.sessions[event.UserID].status = statusProcessing
-	switch event.Text {
+	switch p.sessions[event.UserID].currentOperation {
+	case StartCmd:
+		err = p.sendHello(event.ChatID)
+	case RusHelpCmd:
+		err = p.sendRusHelp(event.ChatID)
+	case HelpCmd:
+		err = p.sendHelp(event.ChatID)
+	case RndCmd:
+		err = p.sendRandom(context.Background(), event.ChatID, event.UserID)
 	case CreateFolderCmd:
 		err = p.tg.SendMessage(event.ChatID, msgEnterFolderName)
 	case ShowFolderCmd:
@@ -75,7 +70,6 @@ func (p *Processor) startCmd(event *events.Event) (err error) {
 	case FeedbackCmd:
 		err = p.tg.SendMessage(event.ChatID, msgEnterFeedback)
 	default:
-		p.sessions[event.UserID].status = statusOK
 		err = p.tg.SendMessage(event.ChatID, msgUnknownCommand)
 	}
 
@@ -86,7 +80,7 @@ func (p *Processor) handleCmd(event *events.Event) (err error) {
 	defer func() {
 		// В случае ошибки мы прерываем выполнение операции
 		if err != nil {
-			p.sessions[event.UserID].status = statusOK
+			p.sessions[event.UserID].currentOperation = DoneCmd
 		}
 		// Отсутствие папок не является ошибкой, которую необходимо логировать.
 		if err == ErrNoFolders {
@@ -97,12 +91,16 @@ func (p *Processor) handleCmd(event *events.Event) (err error) {
 	event.Text = strings.TrimSpace(event.Text)
 	log.Printf("got new command '%s' from '%d'", event.Text, event.UserID)
 
-	if event.Text == CancelCmd {
-		return p.cancelOperation(event.ChatID, event.UserID)
+	switch {
+	case ToOperation(event.Text).IsInternal():
+		return p.tg.SendMessage(event.ChatID, msgUnknownCommand)
+
+	case event.Text == CancelCmd.String():
+		return p.tg.SendMessage(event.ChatID, msgNoCurrentOperation)
 	}
 
 	if p.sessions[event.UserID].currentOperation != GetNameCmd {
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 	}
 	switch p.sessions[event.UserID].currentOperation {
 	case CreateFolderCmd:
@@ -127,7 +125,7 @@ func (p *Processor) handleCmd(event *events.Event) (err error) {
 }
 
 func (p *Processor) cancelOperation(chatID int, userID int) error {
-	p.sessions[userID].status = statusOK
+	p.sessions[userID].currentOperation = DoneCmd
 	return p.tg.SendMessage(chatID, msgOperationCancelled)
 }
 

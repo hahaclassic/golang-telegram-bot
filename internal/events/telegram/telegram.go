@@ -1,19 +1,21 @@
 package telegram
 
 import (
+	"context"
 	"errors"
 	"sync"
 
-	tgClient "github.com/hahaclassic/golang-telegram-bot.git/clients/telegram"
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	tgclient "github.com/hahaclassic/golang-telegram-bot.git/internal/clients/telegram"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage/sqlite"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 // Данный тип реализует сразу два интерфейса: Processor() и Fetcher()
 type Processor struct {
-	tg          *tgClient.Client
-	logger      *tgClient.Client
+	tg          *tgclient.Client
+	logger      *tgclient.Client
 	adminChatID int
 	offset      int
 	storage     storage.Storage
@@ -22,12 +24,11 @@ type Processor struct {
 
 // Убрать status (совместить с currOperation)
 type Session struct {
-	currentOperation string
+	currentOperation Operation
 	url              string
 	tag              string
 	folderID         string
 	lastMessageID    int
-	status           bool
 }
 
 type CallbackMeta struct {
@@ -44,18 +45,31 @@ const (
 var (
 	ErrUnknownEvent    = errors.New("unknown event type")
 	ErrUnknownMetaType = errors.New("unknown meta type")
-	ErrNoFolders       = errors.New("No existing folders")
-	ErrEmptyFolder     = errors.New("Empty folder")
+	ErrNoFolders       = errors.New("no existing folders")
+	ErrEmptyFolder     = errors.New("empty folder")
 )
 
-func New(client *tgClient.Client, logger *tgClient.Client, adminChatID int, storage storage.Storage) *Processor {
-	return &Processor{
-		tg:          client,
-		logger:      logger,
-		adminChatID: adminChatID,
-		storage:     storage,
+func New(config *Config) (*Processor, error) {
+
+	s, err := sqlite.New(config.StoragePath)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.Init(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	processor := &Processor{
+		tg:          tgclient.New(config.Host, config.MainToken),
+		logger:      tgclient.New(config.Host, config.LoggerToken),
+		adminChatID: config.AdminChatID,
+		storage:     s,
 		sessions:    make(map[int]*Session),
 	}
+
+	return processor, nil
 }
 
 func (p *Processor) Fetch(limit int) ([]events.Event, error) {
@@ -102,13 +116,13 @@ func (p *Processor) processCallbackQuery(event events.Event) (err error) {
 	}
 
 	defer func() {
-		if err != nil || p.sessions[event.UserID].status == statusOK {
+		if err != nil || p.sessions[event.UserID].currentOperation == DoneCmd {
 			delete(p.sessions, event.UserID)
 		}
 	}()
 
 	if _, ok := p.sessions[event.UserID]; !ok {
-		p.sessions[event.UserID] = &Session{status: statusOK}
+		p.sessions[event.UserID] = &Session{currentOperation: DoneCmd}
 	}
 
 	return p.doCallbackCmd(&event, meta)
@@ -118,13 +132,13 @@ func (p *Processor) processMessage(event events.Event) (err error) {
 	defer func() { err = errhandling.WrapIfErr("can't process message", err) }()
 
 	defer func() {
-		if err != nil || p.sessions[event.UserID].status == statusOK {
+		if err != nil || p.sessions[event.UserID].currentOperation == DoneCmd {
 			delete(p.sessions, event.UserID)
 		}
 	}()
 
 	if _, ok := p.sessions[event.UserID]; !ok {
-		p.sessions[event.UserID] = &Session{status: statusOK}
+		p.sessions[event.UserID] = &Session{currentOperation: DoneCmd}
 		return p.startCmd(&event)
 	}
 
@@ -140,7 +154,7 @@ func getCallbackMeta(event events.Event) (*CallbackMeta, error) {
 	return &meta, nil
 }
 
-func event(upd tgClient.Update) events.Event {
+func event(upd tgclient.Update) events.Event {
 
 	res := events.Event{
 		Type: fetchType(upd),
@@ -165,7 +179,7 @@ func event(upd tgClient.Update) events.Event {
 	return res
 }
 
-func fetchType(upd tgClient.Update) events.Type {
+func fetchType(upd tgclient.Update) events.Type {
 	switch {
 	case upd.Message != nil:
 		return events.Message

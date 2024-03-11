@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage"
 )
 
 var (
-	decodeAccessDataErr = errors.New("Can't decode access data.")
+	ErrDecodeAccessData = errors.New("cant decode access data")
 )
 
 type AccessData struct {
@@ -19,6 +19,16 @@ type AccessData struct {
 	AccessLevel storage.AccessLevel
 	UserID      int
 	Username    string
+}
+
+func createAccessData(folderID string, folderName string, accessLvl storage.AccessLevel, userID int, username string) *AccessData {
+	return &AccessData{
+		FolderID:    folderID,
+		FolderName:  folderName,
+		AccessLevel: accessLvl,
+		UserID:      userID,
+		Username:    username,
+	}
 }
 
 // returns folderID, userID, accessLvl from callbackData
@@ -50,5 +60,5 @@ func (data *AccessData) EncodeCallbackData() string {
 }
 
 func (data *AccessData) CreateMessage() string {
-	return fmt.Sprintf("Предоставить ли доступ пользователю '%s' к папке '%s'?", data.Username, data.FolderName)
+	return fmt.Sprintf("Предоставить ли уровень доступа  пользователю '%s' к папке '%s'?", data.Username, data.FolderName)
 }

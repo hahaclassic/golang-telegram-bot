@@ -2,11 +2,11 @@ package telegram
 
 import (
 	"context"
-	"log"
+	"strings"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err error) {
@@ -19,30 +19,11 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 		err = errhandling.WrapIfErr("can't do callback cmd", err)
 	}()
 
-	if len(meta.Data) > 7 && meta.Data[:7] == GetAccessCmd {
-		return p.setAccess(context.Background(), event.ChatID, meta.Data, event.Text)
+	if isCallbackOperation(meta) {
+		return p.handleCallbackOperation(event, meta)
 	}
 
-	err = p.tg.DeleteMessage(event.ChatID, p.sessions[event.UserID].lastMessageID)
-	if err != nil {
-		return err
-	}
-
-	if meta.Data == GoBackCmd {
-		return p.goBack(context.Background(), event)
-	}
-
-	if meta.Data == CreateKeyCmd || meta.Data == DeleteKeyCmd {
-		p.sessions[event.UserID].currentOperation = meta.Data
-	} else if storage.ToAccessLvl(meta.Data) != storage.Undefined {
-		log.Println("YES")
-		p.sessions[event.UserID].status = statusOK
-		if p.sessions[event.UserID].currentOperation == CreateKeyCmd {
-			return p.createKey(context.Background(), event.ChatID, event.UserID, storage.ToAccessLvl(meta.Data))
-		} else {
-			return p.deleteKey(context.Background(), event.ChatID, event.UserID, storage.ToAccessLvl(meta.Data))
-		}
-	} else if p.sessions[event.UserID].currentOperation == DeleteLinkCmd {
+	if p.sessions[event.UserID].currentOperation == DeleteLinkCmd {
 		p.sessions[event.UserID].tag = meta.Data
 	} else {
 		p.sessions[event.UserID].folderID = meta.Data
@@ -52,7 +33,8 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 
 	case ChooseFolderForRenamingCmd:
 		p.sessions[event.UserID].currentOperation = RenameFolderCmd
-		return p.tg.SendMessage(event.ChatID, msgEnterNewFolderName)
+		// return p.tg.SendMessage(event.ChatID, msgEnterNewFolderName)
+		return p.tg.EditMessage(event.ChatID, p.sessions[event.UserID].lastMessageID, msgEnterNewFolderName, nil)
 
 	case ChooseLinkForDeletionCmd:
 		p.sessions[event.UserID].currentOperation = DeleteLinkCmd
@@ -66,29 +48,54 @@ func (p *Processor) doCallbackCmd(event *events.Event, meta *CallbackMeta) (err 
 	case KeyCmd:
 		return p.showKeys(context.Background(), event.ChatID, event.UserID)
 
-	case CreateKeyCmd:
-		return p.chooseAccessLvl(event.ChatID, event.UserID)
-
-	case DeleteKeyCmd:
-		return p.chooseAccessLvl(event.ChatID, event.UserID)
-
 	case SaveLinkCmd:
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.savePage(context.Background(), event.ChatID, event.UserID)
 
 	case ShowFolderCmd:
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.showFolder(context.Background(), event.ChatID, event.UserID)
 
 	case DeleteFolderCmd:
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.deleteFolder(context.Background(), event.ChatID, event.UserID)
 
 	case DeleteLinkCmd:
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.deleteLink(context.Background(), event.ChatID, event.UserID)
 	}
 
+	return nil
+}
+
+func isCallbackOperation(meta *CallbackMeta) bool {
+	strOperation := strings.Split(meta.Data, ",")[0]
+	return ToOperation(strOperation) != UndefCmd
+}
+
+func (p *Processor) handleCallbackOperation(event *events.Event, meta *CallbackMeta) error {
+	data := strings.Split(meta.Data, ",")
+	operation := ToOperation(data[0])
+
+	switch operation {
+	case GetAccessCmd:
+		return p.setAccess(context.Background(), event.ChatID, meta.Data, event.Text)
+
+	case GoBackCmd:
+		p.goBack(context.Background(), event)
+
+	case ChooseForCreationKeyCmd:
+		return p.chooseAccessLvl(event.ChatID, event.UserID, CreateKeyCmd)
+
+	case ChooseForDeletionKeyCmd:
+		return p.chooseAccessLvl(event.ChatID, event.UserID, DeleteKeyCmd)
+
+	case CreateKeyCmd:
+		return p.createKey(context.Background(), event.ChatID, event.UserID, storage.ToAccessLvl(data[1]))
+
+	case DeleteKeyCmd:
+		return p.deleteKey(context.Background(), event.ChatID, event.UserID, storage.ToAccessLvl(data[1]))
+	}
 	return nil
 }
 

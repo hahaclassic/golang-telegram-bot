@@ -1,11 +1,11 @@
-package event_consumer
+package consumer
 
 import (
 	"log"
 	"sync"
 	"time"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
 )
 

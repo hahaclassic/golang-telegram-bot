@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	tgclient "github.com/hahaclassic/golang-telegram-bot.git/internal/clients/telegram"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage"
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 // Done
@@ -21,11 +22,16 @@ func (p *Processor) chooseFolder(ctx context.Context, chatID int, userID int) (e
 		return err
 	}
 	if len(folders[0]) == 0 {
-		p.sessions[userID].status = statusOK
+		p.sessions[userID].currentOperation = DoneCmd
 		return p.tg.SendMessage(chatID, msgNoFolders)
 	}
 
-	messageID, err := p.tg.SendCallbackMessage(chatID, msgChooseFolder, folders[1], folders[0])
+	replyMarkup, err := tgclient.CreateInlineKeyboardMarkup(folders[1], folders[0])
+	if err != nil {
+		return err
+	}
+
+	messageID, err := p.tg.SendCallbackMessage(chatID, msgChooseFolder, replyMarkup)
 	if err == nil {
 		p.sessions[userID].lastMessageID = messageID
 	}
@@ -102,7 +108,7 @@ func (p *Processor) renameFolder(ctx context.Context, event *events.Event) (err 
 		return err
 	}
 	if access != storage.Owner {
-		p.sessions[event.UserID].status = statusOK
+		p.sessions[event.UserID].currentOperation = DoneCmd
 		return p.tg.SendMessage(event.ChatID, msgIncorrectAccessLvl)
 	}
 
@@ -133,6 +139,10 @@ func (p *Processor) deleteFolder(ctx context.Context, ChatID int, UserID int) er
 		err = p.storage.RemoveFolder(ctx, p.sessions[UserID].folderID)
 	} else {
 		err = p.storage.DeleteAccess(ctx, UserID, p.sessions[UserID].folderID)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	return p.tg.SendMessage(ChatID, msgFolderDeleted)

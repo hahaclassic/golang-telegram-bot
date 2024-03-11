@@ -115,35 +115,35 @@ const (
 	PublicFolderSpecSymb = "👥️"
 )
 
-const (
-	HelpCmd     = "/help"
-	RusHelpCmd  = "/help_rus"
-	StartCmd    = "/start"
-	CancelCmd   = "/cancel"
-	FeedbackCmd = "/feedback"
+// const (
+// 	HelpCmd     = "/help"
+// 	RusHelpCmd  = "/help_rus"
+// 	StartCmd    = "/start"
+// 	CancelCmd   = "/cancel"
+// 	FeedbackCmd = "/feedback"
 
-	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
-	//ChangeFolderCmd = "/move"      // Меняет местонахождение ссылки
-	RndCmd = "/rnd" // Скидывает случайную ссылку
-	// RenameLink = "/rename"
-	// ChangeTagCmd = "/change_tag" // Изменение тега ссылки
+// 	ChooseLinkForDeletionCmd = "/delete" // Удаляет ссылку из нужной папки
+// 	//ChangeFolderCmd = "/move"      // Меняет местонахождение ссылки
+// 	RndCmd = "/rnd" // Скидывает случайную ссылку
+// 	// RenameLink = "/rename"
+// 	// ChangeTagCmd = "/change_tag" // Изменение тега ссылки
 
-	ShowFolderCmd              = "/show"          // Показывает содержимое папки
-	CreateFolderCmd            = "/create"        // Создает новую папку
-	DeleteFolderCmd            = "/delete_folder" // Удаляет папку
-	ChooseFolderForRenamingCmd = "/rename"        // Изменяет название папки
+// 	ShowFolderCmd              = "/show"          // Показывает содержимое папки
+// 	CreateFolderCmd            = "/create"        // Создает новую папку
+// 	DeleteFolderCmd            = "/delete_folder" // Удаляет папку
+// 	ChooseFolderForRenamingCmd = "/rename"        // Изменяет название папки
 
-	KeyCmd = "/key"
-)
+// 	KeyCmd = "/key"
+// )
 
 // Internal commands
-const (
-	SaveLinkCmd     = "/save"
-	DeleteLinkCmd   = "/delete_link"
-	RenameFolderCmd = "/rename_folder"
-	GetNameCmd      = "/get_name"
-	DeleteKeyCmd    = "/delete_key"
-	CreateKeyCmd    = "/create_key"
-	GetAccessCmd    = "/access"
-	GoBackCmd       = "/back"
-)
+// const (
+// 	SaveLinkCmd     = "/save"
+// 	DeleteLinkCmd   = "/delete_link"
+// 	RenameFolderCmd = "/rename_folder"
+// 	GetNameCmd      = "/get_name"
+// 	DeleteKeyCmd    = "/delete_key"
+// 	CreateKeyCmd    = "/create_key"
+// 	GetAccessCmd    = "/access"
+// 	GoBackCmd       = "/back"
+// )

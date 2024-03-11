@@ -1,11 +1,10 @@
-package tgClient
+package tgclient
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -25,10 +24,11 @@ const (
 	sendMessageMethod         = "sendMessage"
 	AnswerCallbackQueryMethod = "answerCallbackQuery"
 	deleteMessageMethod       = "deleteMessage"
+	editMessageMethod         = "editMessageText"
 )
 
-var NoDataErr = errors.New("no data")
-var WrongDataErr = errors.New("wrong data")
+var ErrNoData = errors.New("no data")
+var ErrWrongData = errors.New("wrong data")
 
 func New(host string, token string) *Client {
 	return &Client{
@@ -63,9 +63,10 @@ func (c *Client) Updates(offset int, limit int) ([]Update, error) {
 
 func (c *Client) SendMessage(chatID int, text string) error {
 
-	data := StandardMessage{
-		ChatID: chatID,
-		Text:   text,
+	data := OutputMessage{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "HTML",
 	}
 
 	// Get json
@@ -82,17 +83,15 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	return nil
 }
 
-// SendCallbackMessage() returns messageID of the sent message and error
-func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []string, callbackData []string) (messageID int, err error) {
-	buttons := [][]InlineKeyboardButton{}
-
-	if buttonsText == nil || len(buttonsText) == 0 ||
-		callbackData == nil || len(callbackData) == 0 {
-		return 0, NoDataErr
+func CreateInlineKeyboardMarkup(buttonsText []string, callbackData []string) (*InlineKeyboardMarkup, error) {
+	if len(buttonsText) == 0 || len(callbackData) == 0 {
+		return nil, ErrNoData
 	}
 	if len(buttonsText) != len(callbackData) {
-		return 0, WrongDataErr
+		return nil, ErrWrongData
 	}
+
+	buttons := [][]InlineKeyboardButton{}
 
 	for i := 0; i < len(buttonsText); i++ {
 		inline := []InlineKeyboardButton{}
@@ -103,16 +102,20 @@ func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []stri
 		buttons = append(buttons, inline)
 	}
 
-	replyMarkup := InlineKeyboardMarkup{
+	replyMarkup := &InlineKeyboardMarkup{
 		InlineKeyboard: buttons}
 
-	log.Println(replyMarkup) // LOG
+	return replyMarkup, nil
+}
 
-	data := ReplyMessage{
+// SendCallbackMessage() returns messageID of the sent message and error
+func (c *Client) SendCallbackMessage(chatID int, text string, replyMarkup *InlineKeyboardMarkup) (messageID int, err error) {
+
+	data := OutputMessage{
 		ChatID:      chatID,
 		Text:        text,
 		ParseMode:   "HTML",
-		ReplyMarkup: replyMarkup,
+		ReplyMarkup: *replyMarkup,
 	}
 
 	// Get json
@@ -132,6 +135,37 @@ func (c *Client) SendCallbackMessage(chatID int, text string, buttonsText []stri
 	}
 
 	return res.Result.MessageID, nil
+}
+
+func (c *Client) EditMessage(chatID int, messageID int, text string, replyMarkup *InlineKeyboardMarkup) error {
+	var reply InlineKeyboardMarkup
+	if replyMarkup != nil {
+		reply = *replyMarkup
+	}
+
+	data := OutputMessage{
+		ChatID:      chatID,
+		Text:        text,
+		ParseMode:   "HTML",
+		ReplyMarkup: reply,
+	}
+
+	EncodedData, err := json.Marshal(data)
+	if err != nil {
+		return errhandling.Wrap("can't get json", err)
+	}
+
+	bodyData, err := c.doPostRequest(editMessageMethod, EncodedData)
+	if err != nil {
+		return errhandling.Wrap("can't send a callback message", err)
+	}
+
+	var res PostRequestResponse
+	if err := json.Unmarshal(bodyData, &res); err != nil {
+		return errhandling.Wrap("can't unmarshal json", err)
+	}
+
+	return nil
 }
 
 func (c *Client) DeleteMessage(chatID int, messageID int) error {

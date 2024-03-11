@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hahaclassic/golang-telegram-bot.git/events"
+	tgclient "github.com/hahaclassic/golang-telegram-bot.git/internal/clients/telegram"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/events"
+	"github.com/hahaclassic/golang-telegram-bot.git/internal/storage"
 	conc "github.com/hahaclassic/golang-telegram-bot.git/lib/concatenation"
 	"github.com/hahaclassic/golang-telegram-bot.git/lib/errhandling"
-	"github.com/hahaclassic/golang-telegram-bot.git/storage"
 )
 
 // Обновлять статус сессии в вызывающей функции
@@ -42,9 +43,13 @@ func (p *Processor) showKeys(ctx context.Context, ChatID int, UserID int) error 
 		message = conc.EnumeratedJoinWithTags(keys, levels)
 	}
 	buttons := []string{"Create key", "Delete key", "Check users", msgBack}
-	operations := []string{CreateKeyCmd, DeleteKeyCmd, "Check users", GoBackCmd}
+	operations := []string{CreateKeyCmd.String(), DeleteKeyCmd.String(), "Check users", GoBackCmd.String()}
 
-	messageID, err := p.tg.SendCallbackMessage(ChatID, message, buttons, operations)
+	replyMarkup, err := tgclient.CreateInlineKeyboardMarkup(buttons, operations)
+	if err != nil {
+		return err
+	}
+	messageID, err := p.tg.SendCallbackMessage(ChatID, message, replyMarkup)
 	if err == nil {
 		p.sessions[UserID].lastMessageID = messageID
 	}
@@ -58,7 +63,7 @@ func (p *Processor) createKey(ctx context.Context, ChatID int, UserID int, acces
 		return err
 	}
 	if access != storage.Owner {
-		p.sessions[UserID].status = statusOK
+		p.sessions[UserID].currentOperation = DoneCmd
 		return p.tg.SendMessage(ChatID, msgIncorrectAccessLvl)
 	}
 
@@ -93,22 +98,54 @@ func (p *Processor) deleteKey(ctx context.Context, ChatID int, UserID int, acces
 	return p.tg.SendMessage(ChatID, "Ключ успешно удален.")
 }
 
+// KEY|FOLDER_ID|PASSWORD
+func decodeKey(key string) (folderID string, password string) {
+	folderID = key[3:15]
+	password = key[15:]
+	return folderID, password
+}
+
+func (p *Processor) sendConfirmationMessage(ctx context.Context, prevAccessLvl storage.AccessLevel, accessData *AccessData) error {
+	owner, err := p.storage.Owner(ctx, accessData.FolderID)
+	if err != nil {
+		return err
+	}
+
+	message := accessData.CreateMessage()
+	callbackDataForYes := accessData.EncodeCallbackData()
+
+	if prevAccessLvl == storage.Suspected {
+		accessData.AccessLevel = storage.Banned
+	} else {
+		accessData.AccessLevel = storage.Suspected
+	}
+	callbackDataForNo := accessData.EncodeCallbackData()
+
+	replyMarkup, err := tgclient.CreateInlineKeyboardMarkup([]string{"Yes", "No"},
+		[]string{callbackDataForYes, callbackDataForNo})
+	if err != nil {
+		return err
+	}
+
+	_, err = p.tg.SendCallbackMessage(owner, message, replyMarkup) // userID соответствует chatID
+	return err
+}
+
 func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err error) {
 
 	defer func() { err = errhandling.WrapIfErr("can't check key", err) }()
 
-	key := event.Text // KEY|FOLDER_ID|PASSWORD
-	folderID := key[3:15]
-	password := key[15:]
+	folderID, password := decodeKey(event.Text) // event.Text == key
 
 	access, err := p.storage.AccessLevelByUserID(ctx, folderID, event.UserID)
-	if err == nil {
-		if access == storage.Owner {
-			return p.tg.SendMessage(event.ChatID, "Вы являетесь владельцем этой папки.")
-		}
-		if access == storage.Banned {
-			return p.tg.SendMessage(event.ChatID, "Доступ к этой папке заблокирован.")
-		}
+	if err != nil {
+		return err
+	}
+	if access == storage.Owner {
+		return p.tg.SendMessage(event.ChatID, "Вы являетесь владельцем этой папки.")
+	}
+	if access == storage.Banned {
+		return p.tg.SendMessage(event.ChatID, "Доступ к этой папке заблокирован.")
 	}
 
 	folderName, err := p.storage.FolderName(ctx, folderID)
@@ -134,30 +171,9 @@ func (p *Processor) checkKey(ctx context.Context, event *events.Event) (err erro
 		return p.tg.SendMessage(event.ChatID, "Папка добавлена успешно.")
 	}
 
-	accessData := &AccessData{
-		FolderID:   folderID,
-		FolderName: folderName,
-		Username:   event.Username,
-		UserID:     event.UserID,
-	}
+	accessData := createAccessData(folderID, folderName, newAccessLevel, event.UserID, event.Username)
 
-	owner, err := p.storage.Owner(ctx, folderID)
-	if err != nil {
-		return err
-	}
-
-	message := accessData.CreateMessage()
-	callbackDataForYes := accessData.EncodeCallbackData()
-
-	if access == storage.Suspected {
-		accessData.AccessLevel = storage.Banned
-	} else {
-		accessData.AccessLevel = storage.Suspected
-	}
-	callbackDataForNo := accessData.EncodeCallbackData()
-
-	p.tg.SendCallbackMessage(owner, message, []string{"Yes", "No"}, []string{callbackDataForYes, callbackDataForNo}) // userID соответствует chatID
-	return err
+	return p.sendConfirmationMessage(ctx, access, accessData)
 }
 
 func (p *Processor) setAccess(ctx context.Context, ownerChatID int, callbackData string, message string) (err error) {
@@ -210,19 +226,24 @@ func (p *Processor) SendResultOfGaingAccess(ownerChatID int, accessData *AccessD
 	return err
 }
 
-func (p *Processor) chooseAccessLvl(ChatID int, UserID int) error {
+func (p *Processor) chooseAccessLvl(ChatID int, UserID int, operation Operation) error {
 
 	names := []string{}
 	data := []string{}
 	for lvl := storage.Editor; lvl >= storage.Reader; lvl-- {
-		names = append(names, fmt.Sprint(lvl))
-		data = append(data, fmt.Sprint(lvl))
+		names = append(names, lvl.String())
+		data = append(data, operation.String()+","+lvl.String())
 		fmt.Println(names)
 	}
 	names = append(names, msgBack)
-	data = append(data, GoBackCmd)
+	data = append(data, GoBackCmd.String())
 
-	messageID, err := p.tg.SendCallbackMessage(ChatID, "Choose access level", names, data)
+	replyMarkup, err := tgclient.CreateInlineKeyboardMarkup(names, data)
+	if err != nil {
+		return err
+	}
+
+	messageID, err := p.tg.SendCallbackMessage(ChatID, "Choose access level", replyMarkup)
 	if err == nil {
 		p.sessions[UserID].lastMessageID = messageID
 	}

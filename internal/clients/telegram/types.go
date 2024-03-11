@@ -1,4 +1,4 @@
-package tgClient
+package tgclient
 
 type UpdatesResponse struct {
 	Ok     bool     `json:"ok"`
@@ -17,19 +17,19 @@ type returnedMessage struct {
 }
 
 type Update struct {
-	ID            int              `json:"update_id"`
-	Message       *IncomingMessage `json:"message"`
-	CallbackQuery *CallbackQuery   `json:"callback_query"`
+	ID            int            `json:"update_id"`
+	Message       *InputMessage  `json:"message"`
+	CallbackQuery *CallbackQuery `json:"callback_query"`
 }
 
 type CallbackQuery struct {
-	QueryID string           `json:"id"`
-	From    From             `json:"from"`
-	Message *IncomingMessage `json:"message"`
-	Data    string           `json:"data"`
+	QueryID string        `json:"id"`
+	From    From          `json:"from"`
+	Message *InputMessage `json:"message"`
+	Data    string        `json:"data"`
 }
 
-type IncomingMessage struct {
+type InputMessage struct {
 	Text string `json:"text"`
 	From From   `json:"from"`
 	Chat Chat   `json:"chat"`
@@ -44,17 +44,12 @@ type Chat struct {
 	ID int `json:"id"`
 }
 
-type ReplyMessage struct {
+type OutputMessage struct {
 	ChatID      int                  `json:"chat_id"`
 	Text        string               `json:"text"`
+	MessageID   int                  `json:"message_id"`
 	ParseMode   string               `json:"parse_mode"`
 	ReplyMarkup InlineKeyboardMarkup `json:"reply_markup,omitempty"`
-}
-
-type StandardMessage struct {
-	ChatID int    `json:"chat_id"`
-	Text   string `json:"text"`
-	//ParseMode string `json:"parse_mode"`
 }
 
 type InlineKeyboardMarkup struct {
