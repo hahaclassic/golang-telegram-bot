@@ -17,7 +17,6 @@ FROM alpine AS runner
 
 COPY --from=builder /usr/local/src/main.exe /
 COPY /configs/config.yaml /configs/config.yaml
-COPY /data  /data
 
 CMD ["/main.exe"]
 

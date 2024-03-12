@@ -1,11 +1,6 @@
 host: "api.telegram.org"
-main-tg-bot-token:    #your main tg bot token
-logger-tg-bot-token:  #your logger tg bot token
-admin:  # your tg id
 
 batch-size: 100
 err-chan-size: 100
 
 storage-path: "./storage/sqlite/data/data.db" # your path to storage
-
-
